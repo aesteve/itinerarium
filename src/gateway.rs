@@ -1,9 +1,17 @@
 use hyper::service::{Service};
-use hyper::{Error, Response, StatusCode, Body, Request};
+use hyper::{Error, Response, Server, StatusCode, Body, Request};
 use futures::task::{Context, Poll};
 use std::pin::Pin;
 use std::future::Future;
 use crate::conf::api::Api;
+
+pub(crate) async fn start_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error> {
+    let gateway = MkGateway { apis };
+    let in_addr = ([127, 0, 0, 1], port).into();
+    let server = Server::bind(&in_addr).serve(gateway);
+    println!("Listening on http://{}", in_addr);
+    server.await
+}
 
 pub(crate) struct Gateway {
     apis: Vec<Api>
@@ -18,15 +26,15 @@ impl Service<Request<Body>> for Gateway {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, mut req: Request<Body>) -> Self::Future {
+    fn call(&mut self, req: Request<Body>) -> Self::Future {
         let apis = self.apis.clone();
         Box::pin(
             async move {
                 match apis.iter().find(|api| api.matches(&req)) {
                     Some(api) => {
-                        api.forward_mut(&mut req);
-                        let resp = api.best_endpoint(&req).client().request(req).await;
+                        let resp = api.forward(req).await;
                         if resp.is_err() {
+                            println!("{:?}", resp);
                             return Ok(Response::builder()
                                 .status(StatusCode::BAD_GATEWAY)
                                 .body(Body::empty()).unwrap())
@@ -44,7 +52,7 @@ impl Service<Request<Body>> for Gateway {
 }
 
 pub(crate) struct MkGateway {
-    apis: Vec<Api>
+    pub(crate) apis: Vec<Api>
 }
 impl <T> Service<T> for MkGateway {
     type Response = Gateway;
@@ -68,7 +76,7 @@ mod tests {
     use std::convert::Infallible;
     use hyper::service::{make_service_fn, service_fn};
     use std::net::SocketAddr;
-    use crate::gateway::MkGateway;
+    use crate::gateway::{start_gateway};
     use crate::utils::unwrap_body_as_str;
     use crate::conf::api::Api;
 
@@ -148,16 +156,12 @@ mod tests {
             test_server("server2", 3002).await
         });
         tokio::spawn(async move {
-            let endpoints = vec![
-                Api::new("127.0.0.1", 3001, "/first".to_string()).unwrap(),
-                Api::new("127.0.0.1", 3002, "/second".to_string()).unwrap(),
-                Api::new("127.0.0.1", 3003, "/third".to_string()).unwrap(), // <-- does not exist
+            let apis = vec![
+                Api::http("127.0.0.1", 3001, "/first".to_string()).unwrap(),
+                Api::http("127.0.0.1", 3002, "/second".to_string()).unwrap(),
+                Api::http("127.0.0.1", 3003, "/third".to_string()).unwrap(), // <-- does not exist
             ];
-            let gateway = MkGateway { apis: endpoints };
-            let in_addr = ([127, 0, 0, 1], 3000).into();
-            let server = Server::bind(&in_addr).serve(gateway);
-            println!("Listening on http://{}", in_addr);
-            server.await
+            start_gateway(3000, apis).await
         });
         let client = Client::new();
         let mut attempts = 0;
@@ -182,14 +186,10 @@ mod tests {
             echo_path(4001).await
         });
         tokio::spawn(async move {
-            let endpoints = vec![
-                Api::new("127.0.0.1", 4001, "/echo".to_string()).unwrap(),
+            let apis = vec![
+                Api::http("127.0.0.1", 4001, "/echo".to_string()).unwrap(),
             ];
-            let gateway = MkGateway { apis: endpoints };
-            let in_addr = ([127, 0, 0, 1], 4000).into();
-            let server = Server::bind(&in_addr).serve(gateway);
-            println!("Listening on http://{}", in_addr);
-            server.await
+            start_gateway(4000, apis).await
         });
         let client = Client::new();
         let mut attempts = 0;
@@ -208,14 +208,10 @@ mod tests {
             echo_body(5001).await
         });
         tokio::spawn(async move {
-            let endpoints = vec![
-                Api::new("127.0.0.1", 5001, "/echo".to_string()).unwrap(),
+            let apis = vec![
+                Api::http("127.0.0.1", 5001, "/echo".to_string()).unwrap(),
             ];
-            let gateway = MkGateway { apis: endpoints };
-            let in_addr = ([127, 0, 0, 1], 5000).into();
-            let server = Server::bind(&in_addr).serve(gateway);
-            println!("Listening on http://{}", in_addr);
-            server.await
+            start_gateway(5000, apis).await
         });
         let client = Client::new();
         let mut attempts = 0;
