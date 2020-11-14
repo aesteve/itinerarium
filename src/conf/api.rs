@@ -2,26 +2,34 @@ use crate::conf::endpoint::{HttpEndpoint};
 use std::string::ParseError;
 use hyper::{Request, Body, Response, Error};
 use hyper::http::uri::PathAndQuery;
+use crate::conf::interceptor::{RequestInterceptor, ResponseInterceptor};
+use futures::FutureExt;
 
 
 #[derive(Debug, Clone)]
 pub(crate) struct Api {
     pub(crate) endpoints: Vec<HttpEndpoint>,
     pub(crate) prefix: String,
+    pub(crate) req_interceptors: Vec<Box<dyn RequestInterceptor>>,
+    pub(crate) res_interceptors: Vec<Box<dyn ResponseInterceptor>>,
 }
 
 impl Api  {
     pub(crate) fn http(host: &str, port: u16, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
             endpoints: vec![HttpEndpoint::http(host, port)?],
-            prefix
+            prefix,
+            req_interceptors: vec![],
+            res_interceptors: vec![]
         })
     }
 
     pub(crate) fn https(host: &str, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
             endpoints: vec![HttpEndpoint::https(host)?],
-            prefix
+            prefix,
+            req_interceptors: vec![],
+            res_interceptors: vec![]
         })
     }
 
@@ -29,11 +37,37 @@ impl Api  {
         match self.endpoint_for(&req) {
             HttpEndpoint::Plain(e) => {
                 self.mut_req(&mut req);
-                e.client.clone().request(req).await
+                for interceptor in &self.req_interceptors {
+                    interceptor.intercept(&req);
+                }
+                e.client
+                    .clone()
+                    .request(req)
+                    .map(|r| {
+                        if let Ok(resp) = &r {
+                            for interceptor in &self.res_interceptors {
+                                interceptor.intercept(resp)
+                            }
+                        }
+                        r
+                    }).await
             },
             HttpEndpoint::Ssl(e) => {
                 self.mut_req(&mut req);
-                e.client.clone().request(req).await
+                for interceptor in &self.req_interceptors {
+                    interceptor.intercept(&req);
+                }
+                e.client
+                    .clone()
+                    .request(req)
+                    .map(|r| {
+                        if let Ok(resp) = &r {
+                            for interceptor in &self.res_interceptors {
+                                interceptor.intercept(resp)
+                            }
+                        }
+                        r
+                    }).await
             }
         }
     }

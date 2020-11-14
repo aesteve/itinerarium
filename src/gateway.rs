@@ -79,8 +79,9 @@ mod tests {
     use crate::gateway::{start_gateway};
     use crate::utils::unwrap_body_as_str;
     use crate::conf::api::Api;
+    use crate::tests::{wait_for, test_server};
 
-    async fn echo_path(port: u16) {
+    async fn echo_path_server(port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let make_svc = make_service_fn(|_conn| {
             async move {
@@ -101,7 +102,7 @@ mod tests {
 
     }
 
-    async fn echo_body(port: u16) {
+    async fn echo_body_server(port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let make_svc = make_service_fn(|_conn| {
             async move {
@@ -123,28 +124,8 @@ mod tests {
     }
 
 
-    async fn test_server(payload: &'static str, port: u16) {
-        let addr = SocketAddr::from(([127, 0, 0, 1], port));
-        let payload = payload.to_string();
-        let make_svc = make_service_fn(|_conn| {
-            let payload = payload.clone();
-            async move {
-                let payload = payload.clone();
-                Ok::<_, Infallible>(
-                    service_fn(move |_req| {
-                        let payload = payload.clone();
-                        async move {
-                            Ok::<_, Infallible>(Response::<Body>::new(payload.into()))
-                        }
-                    }))
-            }
-        });
-
-        let server = Server::bind(&addr).serve(make_svc);
-        println!("Mock server listening on http://{}", addr);
-        if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
-        }
+    fn get_first() -> Request<Body> {
+        Request::builder().method("GET").uri("http://127.0.0.1:3000/first").body(Body::empty()).unwrap()
     }
 
     #[tokio::test]
@@ -164,10 +145,7 @@ mod tests {
             start_gateway(3000, apis).await
         });
         let client = Client::new();
-        let mut attempts = 0;
-        while attempts < 10 && client.get(Uri::from_static("http://127.0.0.1:3000/first")).await.is_err() {
-            attempts += 1;
-        }
+        wait_for(&client, get_first).await;
         let resp = client.get(Uri::from_static("http://127.0.0.1:3000/first")).await.unwrap();
         assert_eq!(200, resp.status());
         assert_eq!("server1", unwrap_body_as_str(resp).await);
@@ -180,10 +158,14 @@ mod tests {
         assert_eq!(404, resp.status());
     }
 
+    fn get_echo() -> Request<Body> {
+        Request::builder().method("GET").uri("http://127.0.0.1:4000/echo/some/path?and_query=value").body(Body::empty()).unwrap()
+    }
+
     #[tokio::test]
     async fn check_path() {
         tokio::spawn(async move {
-            echo_path(4001).await
+            echo_path_server(4001).await
         });
         tokio::spawn(async move {
             let apis = vec![
@@ -192,20 +174,21 @@ mod tests {
             start_gateway(4000, apis).await
         });
         let client = Client::new();
-        let mut attempts = 0;
-        while attempts < 10 && client.get(Uri::from_static("http://127.0.0.1:4000/echo")).await.is_err() {
-            attempts += 1;
-        }
-        let resp = client.get(Uri::from_static("http://127.0.0.1:4000/echo/some/path?and_query=value")).await.unwrap();
+        wait_for(&client, get_echo).await;
+        let resp = client.request(get_echo()).await.unwrap();
         assert_eq!(200, resp.status());
         let body_str = unwrap_body_as_str(resp).await;
         assert_eq!("/some/path?and_query=value", body_str);
     }
 
+    fn post_echo() -> Request<Body> {
+        Request::builder().method("POST").uri("http://127.0.0.1:5000/echo").body("the_body".into()).unwrap()
+    }
+
     #[tokio::test]
     async fn check_forwarded_body() {
         tokio::spawn(async move {
-            echo_body(5001).await
+            echo_body_server(5001).await
         });
         tokio::spawn(async move {
             let apis = vec![
@@ -214,14 +197,8 @@ mod tests {
             start_gateway(5000, apis).await
         });
         let client = Client::new();
-        let mut attempts = 0;
-        while attempts < 10 &&
-            client.request(Request::builder().method("POST").uri("http://127.0.0.1:5000/echo").body("the_body".into()).unwrap())
-                .await
-                .is_err() {
-            attempts += 1;
-        }
-        let resp = client.request(Request::builder().method("POST").uri("http://127.0.0.1:5000/echo").body("the_body".into()).unwrap()).await.unwrap();
+        wait_for(&Client::new(), post_echo).await;
+        let resp = client.request(post_echo()).await.unwrap();
         assert_eq!(200, resp.status());
         let body_str = unwrap_body_as_str(resp).await;
         assert_eq!("the_body", body_str);
