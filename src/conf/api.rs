@@ -41,21 +41,19 @@ impl Api  {
     pub(crate) fn mut_req(&self, req: &mut Request<Body>) {
         // TODO: complete request mapping (applying filters/map/policies/...)
         // TODO: gateway headers (X-Forwarded-For, etc.)
-        let uri_string = match self.endpoint_for(req) {
+        let path = build_path(req.uri().path_and_query(), self.prefix.len());
+        *req.uri_mut() = match self.endpoint_for(req) {
             Endpoints::Plain(e) => format!(
                 "http://{}{}",
                 e.address.clone(),
-                build_path(req.uri().path_and_query(), self.prefix.len())
+                path
             ),
             Endpoints::Ssl(e) => format!(
                 "https://{}{}",
                 e.address.clone(),
-                build_path(req.uri().path_and_query(), self.prefix.len())
+                path
             ),
-        };
-        let uri = uri_string.parse().unwrap();
-        println!("Forwarding to {:?}", uri);
-        *req.uri_mut() = uri;
+        }.parse().unwrap();
     }
 
     pub(crate) fn matches(&self, req: &Request<Body>) -> bool {
@@ -74,5 +72,4 @@ fn build_path(path: Option<&PathAndQuery>, from: usize) -> String {
     } else {
         full_path[from..].to_string()
     }
-
 }
