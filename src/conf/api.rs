@@ -5,14 +5,14 @@ use hyper::http::uri::PathAndQuery;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Api {
-    pub(crate) endpoint: Endpoint, // TODO: Vec<Endpoint>
+    pub(crate) endpoints: Vec<Endpoint>,
     pub(crate) prefix: String,
 }
 
 impl Api {
     pub(crate) fn new(host: &str, port: u16, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
-            endpoint: Endpoint::new(host, port)?,
+            endpoints: vec![Endpoint::new(host, port)?],
             prefix
         })
     }
@@ -20,9 +20,10 @@ impl Api {
     pub(crate) fn forward_mut(&self, req: &mut Request<Body>) {
         // TODO: complete request mapping (applying filters/map/policies/...)
         // TODO: gateway headers (X-Forwarded-For, etc.)
+        let endpoint = self.best_endpoint(req);
         let uri_string = format!(
             "http://{}{}",
-            self.endpoint.address.clone(),
+            endpoint.address.clone(),
             build_path(req.uri().path_and_query(), self.prefix.len())
         );
         let uri = uri_string.parse().unwrap();
@@ -31,6 +32,10 @@ impl Api {
 
     pub(crate) fn matches(&self, req: &Request<Body>) -> bool {
         req.uri().path().starts_with(&self.prefix)
+    }
+
+    pub(crate) fn best_endpoint(&self, _req: &Request<Body>) -> &Endpoint {
+        self.endpoints.iter().next().unwrap() // TODO: decision tree (health checks, etc.)
     }
 }
 

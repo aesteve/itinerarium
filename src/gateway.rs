@@ -25,7 +25,7 @@ impl Service<Request<Body>> for Gateway {
                 match apis.iter().find(|api| api.matches(&req)) {
                     Some(api) => {
                         api.forward_mut(&mut req);
-                        let resp = api.endpoint.client().request(req).await;
+                        let resp = api.best_endpoint(&req).client().request(req).await;
                         if resp.is_err() {
                             return Ok(Response::builder()
                                 .status(StatusCode::BAD_GATEWAY)
