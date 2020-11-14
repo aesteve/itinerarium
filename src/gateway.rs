@@ -4,15 +4,9 @@ use futures::task::{Context, Poll};
 use std::pin::Pin;
 use std::future::Future;
 use crate::conf::api::Api;
-use hyper::http::uri::PathAndQuery;
 
 pub(crate) struct Gateway {
     apis: Vec<Api>
-}
-
-fn build_path(path: Option<&PathAndQuery>, from: usize) -> String {
-    let full_path = path.map(|x| x.as_str()).unwrap_or("");
-    full_path[from..].to_string()
 }
 
 impl Service<Request<Body>> for Gateway {
@@ -25,42 +19,26 @@ impl Service<Request<Body>> for Gateway {
     }
 
     fn call(&mut self, mut req: Request<Body>) -> Self::Future {
-        // Box::pin(async { Ok(Response::builder().body(Body::from("ok")).unwrap()) })
         let apis = self.apis.clone();
         Box::pin(
             async move {
-                let incoming_uri = req.uri();
-                let path = incoming_uri.path();
-                match apis.iter().find_map(|api| {
-                    if path.starts_with(&api.prefix) {
-                        Some((format!(
-                            "http://{}{}",
-                            api.endpoint.address.clone(),
-                            build_path(req.uri().path_and_query(), api.prefix.len())
-                        ), api.endpoint.client()))
-                    } else {
-                        None
-                    }
-                }) {
-                    Some((uri_string, client)) => {
-                        let uri = uri_string.parse().unwrap();
-                        *req.uri_mut() = uri;
-                        match client.request(req).await {
-                            Err(_) => Ok(Response::builder()
+                match apis.iter().find(|api| api.matches(&req)) {
+                    Some(api) => {
+                        api.forward_mut(&mut req);
+                        let resp = api.endpoint.client().request(req).await;
+                        if resp.is_err() {
+                            return Ok(Response::builder()
                                 .status(StatusCode::BAD_GATEWAY)
-                                .body(Body::empty()).unwrap()),
-                            res => res,
+                                .body(Body::empty()).unwrap())
                         }
+                        resp
                     },
-                    None => {
-                        // return ok(Response::builder().status(404).body(json!({"message": "endpoint not found"})).unwrap())
+                    None =>
                         Ok(Response::builder()
                             .status(StatusCode::NOT_FOUND)
                             .body(Body::empty()).unwrap())
-                    }
                 }
             }
-
         )
     }
 }
