@@ -16,17 +16,17 @@ async fn main() -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use hyper::{Request, Body, Client, Response, Server};
-    use hyper::client::HttpConnector;
+    use hyper::{Body, Client, Response, Server, Uri};
     use hyper::service::{make_service_fn, service_fn};
     use std::convert::Infallible;
     use std::net::SocketAddr;
+    use std::str::FromStr;
 
-    pub(crate) type RequestBuilder = fn() -> Request<Body>;
-
-    pub(crate) async fn wait_for(client: &Client<HttpConnector>, req_builder: RequestBuilder) {
+    pub(crate) async fn wait_for_gateway(port: u16) {
         let mut attempts = 0;
-        while attempts < 10 && client.request(req_builder()).await.is_err() {
+        let client = Client::new();
+        let health_uri =  format!("http://127.0.0.1:{}/health", port);
+        while attempts < 10 && client.get(Uri::from_str(health_uri.as_str()).unwrap()).await.is_err() {
             attempts += 1;
         }
     }
