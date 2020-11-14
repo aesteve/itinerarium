@@ -1,10 +1,8 @@
-use std::net::SocketAddr;
 use hyper::service::{Service};
-use hyper::{Client, Error, Response, StatusCode, Body, Request};
+use hyper::{Error, Response, StatusCode, Body, Request};
 use futures::task::{Context, Poll};
 use std::pin::Pin;
 use std::future::Future;
-use hyper::client::HttpConnector;
 use crate::conf::api::Api;
 use hyper::http::uri::PathAndQuery;
 
@@ -28,21 +26,18 @@ impl Service<Request<Body>> for Gateway {
 
     fn call(&mut self, mut req: Request<Body>) -> Self::Future {
         // Box::pin(async { Ok(Response::builder().body(Body::from("ok")).unwrap()) })
-        let endpoints = self.apis
-            .iter()
-            .map(|e| (e.endpoint.address, e.prefix.clone(), e.endpoint.client()))
-            .collect::<Vec<(SocketAddr, String, Client<HttpConnector>)>>();
+        let apis = self.apis.clone();
         Box::pin(
             async move {
                 let incoming_uri = req.uri();
                 let path = incoming_uri.path();
-                match endpoints.iter().find_map(|(address, prefix, client)| {
-                    if path.starts_with(prefix) {
+                match apis.iter().find_map(|api| {
+                    if path.starts_with(&api.prefix) {
                         Some((format!(
                             "http://{}{}",
-                            address.clone(),
-                            build_path(req.uri().path_and_query(), prefix.len())
-                        ), client))
+                            api.endpoint.address.clone(),
+                            build_path(req.uri().path_and_query(), api.prefix.len())
+                        ), api.endpoint.client()))
                     } else {
                         None
                     }
