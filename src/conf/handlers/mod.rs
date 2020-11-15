@@ -24,7 +24,7 @@ mod tests {
     use crate::conf::handlers::{Handler, HandlerResponse};
     use hyper::{Client, Response, Request, Body, StatusCode, Uri};
     use crate::conf::handlers::HandlerResponse::{Continue, Break};
-    use crate::gateway::start_gateway;
+    use crate::gateway::start_local_gateway;
     use crate::conf::api::Api;
     use std::str::FromStr;
     use hyper::header::{HeaderValue, HeaderName};
@@ -50,7 +50,7 @@ mod tests {
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             api.register_handler(Box::new(BreakingHandler {}));
-            start_gateway(gw_port, vec![api]).await
+            start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();
@@ -84,7 +84,7 @@ mod tests {
             let origin = SystemTime::now();
             api.register_handler(Box::new(TimeHandler { name: "time-1".to_string(), origin }));
             api.register_handler(Box::new(TimeHandler { name: "time-2".to_string(), origin })); // <- should always be invoked after
-            start_gateway(gw_port, vec![api]).await
+            start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();

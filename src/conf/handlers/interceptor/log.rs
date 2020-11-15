@@ -37,7 +37,7 @@ impl Handler for LogResponseInterceptor {
 
 #[cfg(test)]
 mod tests {
-    use crate::gateway::start_gateway;
+    use crate::gateway::start_local_gateway;
     use hyper::{Client, Uri};
     use ::log::{Level, LevelFilter};
     use simple_logger::SimpleLogger;
@@ -59,7 +59,7 @@ mod tests {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             api.register_handler(Box::new(LogRequestInterceptor { level: Level::Info }));
             api.register_handler(Box::new(LogResponseInterceptor { level: Level::Warn }));
-            start_gateway(6000, vec![api]).await
+            start_local_gateway(6000, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();

@@ -1,4 +1,4 @@
-use crate::gateway::{start_gateway};
+use crate::gateway::{start_local_gateway};
 use crate::conf::api::Api;
 use hyper::Error;
 
@@ -8,7 +8,7 @@ pub mod gateway;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    start_gateway(
+    start_local_gateway(
         1234,
         vec![Api::https("swapi.dev", "/swapi".to_string()).unwrap()]
     ).await
@@ -21,6 +21,7 @@ mod tests {
     use std::convert::Infallible;
     use std::net::SocketAddr;
     use std::str::FromStr;
+    use log::*;
 
     pub async fn wait_for_gateway(port: u16) {
         let mut attempts = 0;
@@ -49,9 +50,9 @@ mod tests {
         });
 
         let server = Server::bind(&addr).serve(make_svc);
-        println!("Mock server listening on http://{}", addr);
+        info!("Mock server listening on http://{}", addr);
         if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
+            error!("server error: {}", e);
         }
     }
 

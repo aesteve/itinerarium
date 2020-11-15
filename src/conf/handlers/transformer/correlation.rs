@@ -35,13 +35,14 @@ mod tests {
     use hyper::{Server, StatusCode, Body, Response, Client, Uri, Request};
     use std::convert::Infallible;
     use crate::conf::api::Api;
-    use crate::gateway::start_gateway;
+    use crate::gateway::start_local_gateway;
     use crate::tests::wait_for_gateway;
     use std::str::FromStr;
     use crate::utils::unwrap_body_as_str;
     use uuid::Uuid;
     use crate::conf::handlers::transformer::correlation::CorrelationIdTransformer;
     use hyper::header::HeaderValue;
+    use log::*;
 
     async fn echo_correlation_server(header: &'static str, backend_port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], backend_port));
@@ -63,9 +64,9 @@ mod tests {
             }
         });
         let server = Server::bind(&addr).serve(make_svc);
-        println!("Mock server listening on http://{}", addr);
+        info!("Mock server listening on http://{}", addr);
         if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
+            error!("Server error: {}", e);
         }
     }
 
@@ -81,7 +82,7 @@ mod tests {
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
             api.register_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
-            start_gateway(gw_port, vec![api]).await
+            start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();
@@ -104,7 +105,7 @@ mod tests {
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
             api.register_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
-            start_gateway(gw_port, vec![api]).await
+            start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();

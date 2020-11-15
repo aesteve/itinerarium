@@ -4,12 +4,16 @@ use futures::task::{Context, Poll};
 use std::pin::Pin;
 use std::future::Future;
 use crate::conf::api::Api;
+use log::info;
 
-pub async fn start_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error> {
+type PinnedResponseFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, Error>> + Send>>;
+type PinnedGatewayFuture = Pin<Box<dyn Future<Output = Result<Gateway, Error>> + Send>>;
+
+pub async fn start_local_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error> {
     let gateway = MkGateway { apis };
     let in_addr = ([127, 0, 0, 1], port).into();
     let server = Server::bind(&in_addr).serve(gateway);
-    println!("Listening on http://{}", in_addr);
+    info!("Listening on http://{}", in_addr);
     server.await
 }
 
@@ -20,7 +24,7 @@ pub struct Gateway {
 impl Service<Request<Body>> for Gateway {
     type Response = Response<Body>;
     type Error = Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = PinnedResponseFuture;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -68,7 +72,7 @@ pub struct MkGateway {
 impl <T> Service<T> for MkGateway {
     type Response = Gateway;
     type Error = Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = PinnedGatewayFuture;
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -87,12 +91,13 @@ mod tests {
     use std::convert::Infallible;
     use hyper::service::{make_service_fn, service_fn};
     use std::net::SocketAddr;
-    use crate::gateway::{start_gateway};
+    use crate::gateway::{start_local_gateway};
     use crate::utils::unwrap_body_as_str;
     use crate::conf::api::Api;
     use crate::tests::{test_server, wait_for_gateway};
     use std::str::FromStr;
     use hyper::http::HeaderValue;
+    use log::*;
 
     async fn echo_path_server(port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
@@ -108,9 +113,9 @@ mod tests {
             }
         });
         let server = Server::bind(&addr).serve(make_svc);
-        println!("Mock server listening on http://{}", addr);
+        info!("Mock server listening on http://{}", addr);
         if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
+            error!("server error: {}", e);
         }
 
     }
@@ -129,9 +134,9 @@ mod tests {
             }
         });
         let server = Server::bind(&addr).serve(make_svc);
-        println!("Mock server listening on http://{}", addr);
+        info!("Mock server listening on http://{}", addr);
         if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
+            error!("server error: {}", e);
         }
 
     }
@@ -154,7 +159,7 @@ mod tests {
                     Api::http("127.0.0.1", *port, path.to_string()).unwrap()
                 }).collect();
                 apis.push(Api::http("127.0.0.1", backend_3_port, path_3.to_string()).unwrap()); // <-- does not exist
-                start_gateway(gw_port, apis).await
+                start_local_gateway(gw_port, apis).await
             }
         });
         wait_for_gateway(gw_port).await;
@@ -191,7 +196,7 @@ mod tests {
             let apis = vec![
                 Api::http("127.0.0.1", 4001, prefix.to_string()).unwrap(),
             ];
-            start_gateway(gw_port, apis).await
+            start_local_gateway(gw_port, apis).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();
@@ -215,7 +220,7 @@ mod tests {
             let apis = vec![
                 Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap(),
             ];
-            start_gateway(gw_port, apis).await
+            start_local_gateway(gw_port, apis).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();
@@ -261,16 +266,16 @@ mod tests {
                 }
             });
             let server = Server::bind(&addr).serve(make_svc);
-            println!("Mock server listening on http://{}", addr);
+            info!("Mock server listening on http://{}", addr);
             if let Err(e) = server.await {
-                eprintln!("server error: {}", e);
+                error!("server error: {}", e);
             }
         });
         tokio::spawn(async move {
             let apis = vec![
                 Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap(),
             ];
-            start_gateway(gw_port, apis).await
+            start_local_gateway(gw_port, apis).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();
