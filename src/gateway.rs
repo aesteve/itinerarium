@@ -27,14 +27,14 @@ impl Service<Request<Body>> for Gateway {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let apis = self.apis.clone();
+        let api: Option<Api> = self.match_path(&req).cloned();
         Box::pin(
             async move {
                 let path = req.uri().path();
                 if path == "/health" {
                     return Ok(Response::builder().status(200).body(Body::empty()).unwrap())
                 }
-                match apis.iter().find(|api| api.matches(&req)) {
+                match api {
                     Some(api) => {
                         let resp = api.forward(req).await;
                         if resp.is_err() {
@@ -52,6 +52,13 @@ impl Service<Request<Body>> for Gateway {
                 }
             }
         )
+    }
+
+}
+
+impl Gateway {
+    fn match_path(&self, req: &Request<Body>) -> Option<&Api> {
+        self.apis.iter().find(|api| api.matches(req))
     }
 }
 

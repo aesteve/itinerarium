@@ -2,71 +2,85 @@ use crate::conf::endpoint::{HttpEndpoint};
 use std::string::ParseError;
 use hyper::{Request, Body, Response, Error};
 use hyper::http::uri::PathAndQuery;
-use crate::conf::interceptor::{RequestInterceptor, ResponseInterceptor};
 use futures::FutureExt;
-
+use crate::conf::handlers::{HandlerResponse, Handler};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Api {
-    pub(crate) endpoints: Vec<HttpEndpoint>,
     pub(crate) prefix: String,
-    pub(crate) req_interceptors: Vec<Box<dyn RequestInterceptor>>,
-    pub(crate) res_interceptors: Vec<Box<dyn ResponseInterceptor>>,
+    pub(crate) endpoints: Vec<HttpEndpoint>,
+    pub(crate) handlers: Vec<Box<dyn Handler>>,
 }
 
 impl Api  {
     pub(crate) fn http(host: &str, port: u16, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
-            endpoints: vec![HttpEndpoint::http(host, port)?],
             prefix,
-            req_interceptors: vec![],
-            res_interceptors: vec![]
+            endpoints: vec![HttpEndpoint::http(host, port)?],
+            handlers: vec![],
         })
     }
 
     pub(crate) fn https(host: &str, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
-            endpoints: vec![HttpEndpoint::https(host)?],
             prefix,
-            req_interceptors: vec![],
-            res_interceptors: vec![]
+            endpoints: vec![HttpEndpoint::https(host)?],
+            handlers: vec![],
         })
+    }
+
+    pub(crate) fn register_handler(&mut self, handler: Box<dyn Handler>) {
+        self.handlers.push(handler);
     }
 
     pub(crate) async fn forward(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
         match self.endpoint_for(&req) {
             HttpEndpoint::Plain(e) => {
                 self.mut_req(&mut req);
-                for interceptor in &self.req_interceptors {
-                    interceptor.intercept(&req);
+                for handler in &self.handlers {
+                    if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
+                        return Ok(resp)
+                    }
                 }
                 e.client
                     .clone()
                     .request(req)
-                    .map(|r| {
-                        if let Ok(resp) = &r {
-                            for interceptor in &self.res_interceptors {
-                                interceptor.intercept(resp)
-                            }
+                    .map(|res| {
+                        match res {
+                            Ok(mut resp) => {
+                                for handler in &self.handlers {
+                                    if let HandlerResponse::Break(overriden) = handler.handle_res(&mut resp) {
+                                        return Ok(overriden)
+                                    }
+                                }
+                                Ok(resp)
+                            },
+                            error => error
                         }
-                        r
                     }).await
             },
             HttpEndpoint::Ssl(e) => {
                 self.mut_req(&mut req);
-                for interceptor in &self.req_interceptors {
-                    interceptor.intercept(&req);
+                for handler in &self.handlers {
+                    if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
+                        return Ok(resp)
+                    }
                 }
                 e.client
                     .clone()
                     .request(req)
-                    .map(|r| {
-                        if let Ok(resp) = &r {
-                            for interceptor in &self.res_interceptors {
-                                interceptor.intercept(resp)
-                            }
+                    .map(|res| {
+                        match res {
+                            Ok(mut resp) => {
+                                for handler in &self.handlers {
+                                    if let HandlerResponse::Break(overriden) = handler.handle_res(&mut resp) {
+                                        return Ok(overriden)
+                                    }
+                                }
+                                Ok(resp)
+                            },
+                            error => error
                         }
-                        r
                     }).await
             }
         }
