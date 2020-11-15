@@ -2,9 +2,9 @@ use crate::gateway::{start_gateway};
 use crate::conf::api::Api;
 use hyper::Error;
 
-pub(crate) mod conf;
-pub(crate) mod utils;
-pub(crate) mod gateway;
+pub mod conf;
+pub mod utils;
+pub mod gateway;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -22,7 +22,7 @@ mod tests {
     use std::net::SocketAddr;
     use std::str::FromStr;
 
-    pub(crate) async fn wait_for_gateway(port: u16) {
+    pub async fn wait_for_gateway(port: u16) {
         let mut attempts = 0;
         let client = Client::new();
         let health_uri =  format!("http://127.0.0.1:{}/health", port);
@@ -31,7 +31,7 @@ mod tests {
         }
     }
 
-    pub(crate) async fn test_server(payload: &'static str, port: u16) {
+    pub async fn test_server(payload: &'static str, port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let payload = payload.to_string();
         let make_svc = make_service_fn(|_conn| {

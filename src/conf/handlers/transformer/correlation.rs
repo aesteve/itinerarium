@@ -6,7 +6,7 @@ use hyper::header::{HeaderValue, HeaderName};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
-pub(crate) struct CorrelationIdTransformer {
+pub struct CorrelationIdTransformer {
     header_name: String
 }
 

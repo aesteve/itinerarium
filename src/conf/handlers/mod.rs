@@ -2,16 +2,16 @@ use hyper::{Response, Body, Request};
 use dyn_clone::{clone_trait_object, DynClone};
 use std::fmt::Debug;
 
-pub(crate) mod interceptor;
-pub(crate) mod transformer;
+pub mod interceptor;
+pub mod transformer;
 
-pub(crate) enum HandlerResponse {
+pub enum HandlerResponse {
     Continue,               // move on to next handler
     Break(Response<Body>)   // breaks and returns the response
 }
 
 
-pub(crate) trait Handler: Send + Debug + Sync + DynClone {
+pub trait Handler: Send + Debug + Sync + DynClone {
     fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse;
     fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse;
 }

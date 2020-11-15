@@ -1,1 +1,1 @@
-pub(crate) mod correlation;
+pub mod correlation;

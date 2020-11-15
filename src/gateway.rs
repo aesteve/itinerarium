@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::future::Future;
 use crate::conf::api::Api;
 
-pub(crate) async fn start_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error> {
+pub async fn start_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error> {
     let gateway = MkGateway { apis };
     let in_addr = ([127, 0, 0, 1], port).into();
     let server = Server::bind(&in_addr).serve(gateway);
@@ -13,7 +13,7 @@ pub(crate) async fn start_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error
     server.await
 }
 
-pub(crate) struct Gateway {
+pub struct Gateway {
     apis: Vec<Api>
 }
 
@@ -62,8 +62,8 @@ impl Gateway {
     }
 }
 
-pub(crate) struct MkGateway {
-    pub(crate) apis: Vec<Api>
+pub struct MkGateway {
+    pub apis: Vec<Api>
 }
 impl <T> Service<T> for MkGateway {
     type Response = Gateway;

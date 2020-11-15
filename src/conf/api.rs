@@ -6,14 +6,14 @@ use futures::FutureExt;
 use crate::conf::handlers::{HandlerResponse, Handler};
 
 #[derive(Debug, Clone)]
-pub(crate) struct Api {
-    pub(crate) prefix: String,
-    pub(crate) endpoints: Vec<HttpEndpoint>,
-    pub(crate) handlers: Vec<Box<dyn Handler>>,
+pub struct Api {
+    pub prefix: String,
+    pub endpoints: Vec<HttpEndpoint>,
+    pub handlers: Vec<Box<dyn Handler>>,
 }
 
 impl Api  {
-    pub(crate) fn http(host: &str, port: u16, prefix: String) -> Result<Self, ParseError> {
+    pub fn http(host: &str, port: u16, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
             prefix,
             endpoints: vec![HttpEndpoint::http(host, port)?],
@@ -21,7 +21,7 @@ impl Api  {
         })
     }
 
-    pub(crate) fn https(host: &str, prefix: String) -> Result<Self, ParseError> {
+    pub fn https(host: &str, prefix: String) -> Result<Self, ParseError> {
         Ok(Api {
             prefix,
             endpoints: vec![HttpEndpoint::https(host)?],
@@ -29,11 +29,11 @@ impl Api  {
         })
     }
 
-    pub(crate) fn register_handler(&mut self, handler: Box<dyn Handler>) {
+    pub fn register_handler(&mut self, handler: Box<dyn Handler>) {
         self.handlers.push(handler);
     }
 
-    pub(crate) async fn forward(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
+    pub async fn forward(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
         match self.endpoint_for(&req) {
             HttpEndpoint::Plain(e) => {
                 self.mut_req(&mut req);
@@ -84,7 +84,7 @@ impl Api  {
         }
     }
 
-    pub(crate) fn mut_req(&self, req: &mut Request<Body>) {
+    pub fn mut_req(&self, req: &mut Request<Body>) {
         // TODO: complete request mapping (applying filters/map/policies/...)
         // TODO: gateway headers (X-Forwarded-For, etc.)
         let path = build_path(req.uri().path_and_query(), self.prefix.len());
@@ -102,11 +102,11 @@ impl Api  {
         }.parse().unwrap();
     }
 
-    pub(crate) fn matches(&self, req: &Request<Body>) -> bool {
+    pub fn matches(&self, req: &Request<Body>) -> bool {
         req.uri().path().starts_with(&self.prefix)
     }
 
-    pub(crate) fn endpoint_for(&self, _req: &Request<Body>) -> &HttpEndpoint {
+    pub fn endpoint_for(&self, _req: &Request<Body>) -> &HttpEndpoint {
         // TODO: decision tree (based on health checks, response times, etc.)
         self.endpoints.get(0).unwrap()
     }
