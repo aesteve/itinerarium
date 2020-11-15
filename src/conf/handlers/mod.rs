@@ -6,8 +6,8 @@ pub(crate) mod interceptor;
 pub(crate) mod transformer;
 
 pub(crate) enum HandlerResponse {
-    Continue,
-    Break(Response<Body>) // <-- breaks and returns the response
+    Continue,               // move on to next handler
+    Break(Response<Body>)   // breaks and returns the response
 }
 
 
