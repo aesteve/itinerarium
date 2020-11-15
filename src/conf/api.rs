@@ -43,7 +43,6 @@ impl Api  {
                     }
                 }
                 e.client
-                    .clone()
                     .request(req)
                     .map(|res| {
                         match res {
@@ -67,7 +66,6 @@ impl Api  {
                     }
                 }
                 e.client
-                    .clone()
                     .request(req)
                     .map(|res| {
                         match res {

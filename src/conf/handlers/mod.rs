@@ -73,8 +73,8 @@ mod tests {
                 Continue
             }
         }
-        let gw_port = 7100;
-        let backend_port = 7101;
+        let gw_port = 7200;
+        let backend_port = 7201;
         let path = "/shortcut";
         tokio::spawn(async move {
             test_server("something", backend_port).await
