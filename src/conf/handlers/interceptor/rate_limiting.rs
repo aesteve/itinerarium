@@ -4,6 +4,7 @@ use hyper::{Response, Request, Body, StatusCode};
 use std::time::Instant;
 use std::collections::VecDeque;
 use std::sync::{Mutex, Arc};
+use log::error;
 
 /// Global rate limiter (not a quota per user, a global threshold)
 /// Protecting the backend against too many requests
@@ -33,20 +34,26 @@ impl Handler for RateLimiter {
     fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
         let now = Instant::now();
         let threshold = now - self.conf.span;
-        let mut q = self.accesses.lock().unwrap();
-        while let Some(access) = q.front() {
-            if access > &threshold {
-                break;
+        match self.accesses.lock() {
+            Err(e) => {
+                error!("Rate limiter couldn't count accesses {:?}", e);
+                HandlerResponse::Break(Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap())
             }
-            q.pop_front();
+            Ok(mut q) => {
+                while let Some(access) = q.front() {
+                    if access > &threshold {
+                        break;
+                    }
+                    q.pop_front();
+                }
+                q.push_back(now);
+                if q.len() > self.conf.nb {
+                    HandlerResponse::Break(Response::builder().status(StatusCode::TOO_MANY_REQUESTS).body(Body::empty()).unwrap())
+                } else {
+                    HandlerResponse::Continue
+                }
+            }
         }
-        q.push_back(now);
-        if q.len() > self.conf.nb {
-            HandlerResponse::Break(Response::builder().status(StatusCode::TOO_MANY_REQUESTS).body(Body::empty()).unwrap())
-        } else {
-            HandlerResponse::Continue
-        }
-
     }
 
     fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
