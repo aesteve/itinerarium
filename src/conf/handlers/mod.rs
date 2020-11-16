@@ -29,6 +29,8 @@ mod tests {
     use std::str::FromStr;
     use hyper::header::{HeaderValue, HeaderName};
     use std::time::{SystemTime};
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
 
 
     #[tokio::test]
@@ -95,6 +97,43 @@ mod tests {
         let fst: u64 = headers.get("time-1").unwrap().to_str().unwrap().parse().unwrap();
         let snd: u64 = headers.get("time-2").unwrap().to_str().unwrap().parse().unwrap();
         assert!(fst < snd);
+    }
+
+    #[tokio::test]
+    async fn test_mut_handler() {
+        #[derive(Debug, Clone)] struct CountHandler { counter: Arc<AtomicU32> }
+        impl Handler for CountHandler {
+            fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
+                Continue
+            }
+            fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse {
+                let old = self.counter.fetch_add(1, Ordering::SeqCst);
+                res.headers_mut().insert("X-Count", HeaderValue::from(old + 1));
+                Continue
+            }
+        }
+        let gw_port = 7300;
+        let backend_port = 7301;
+        let path = "/counter";
+        tokio::spawn(async move {
+            test_server("check X-Count header", backend_port).await
+        });
+        tokio::spawn(async move {
+            let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
+            api.register_handler(Box::new(CountHandler { counter: Arc::new(AtomicU32::new(0)) }));
+            start_local_gateway(gw_port, vec![api]).await
+        });
+        wait_for_gateway(gw_port).await;
+        let client = Client::new();
+        let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, path).as_str()).unwrap();
+        client.get(url.clone()).await.unwrap();
+        client.get(url.clone()).await.unwrap();
+        client.get(url.clone()).await.unwrap();
+        let resp = client.get(url).await.unwrap();
+        assert_eq!(StatusCode::OK, resp.status());
+        let headers = resp.headers();
+        let count: u32 = headers.get("X-Count").unwrap().to_str().unwrap().parse().unwrap();
+        assert_eq!(count, 4); // does not work, since handlers are cloned for every incoming request
     }
 
 }
