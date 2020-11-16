@@ -40,7 +40,7 @@ impl Service<Request<Body>> for Gateway {
                 }
                 match api {
                     Some(api) => {
-                        let resp = api.forward(req).await;
+                        let resp = api.proxy(req).await;
                         if resp.is_err() {
                             log::error!("{:?}", resp);
                             return Ok(Response::builder()

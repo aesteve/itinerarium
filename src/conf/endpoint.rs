@@ -1,7 +1,8 @@
 use std::string::ParseError;
 use hyper::client::HttpConnector;
-use hyper::{Client};
+use hyper::{Client, Request, Body};
 use hyper_tls::HttpsConnector;
+use hyper::http::uri::PathAndQuery;
 
 
 #[derive(Debug, Clone)]
@@ -37,4 +38,30 @@ impl HttpEndpoint {
         }))
     }
 
+    /// Changes the request URI to target this endpoint
+    pub fn target_req_uri(&self, prefix: &str, req: &mut Request<Body>) {
+        let path = build_path(req.uri().path_and_query(), prefix.len());
+        *req.uri_mut() = match self {
+            HttpEndpoint::Plain(e) => format!(
+                "http://{}{}",
+                e.address.clone(),
+                path
+            ),
+            HttpEndpoint::Ssl(e) => format!(
+                "https://{}{}",
+                e.address.clone(),
+                path
+            ),
+        }.parse().unwrap();
+    }
+
+}
+
+fn build_path(path: Option<&PathAndQuery>, from: usize) -> String {
+    let full_path = path.map(|x| x.as_str()).unwrap_or("");
+    if from > full_path.len() {
+        "".to_string()
+    } else {
+        full_path[from..].to_string()
+    }
 }

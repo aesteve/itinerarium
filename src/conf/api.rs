@@ -1,7 +1,6 @@
 use crate::conf::endpoint::{HttpEndpoint};
 use std::string::ParseError;
 use hyper::{Request, Body, Response, Error};
-use hyper::http::uri::PathAndQuery;
 use futures::FutureExt;
 use crate::conf::handlers::{HandlerResponse, Handler};
 use crate::conf::endpoint::HttpEndpoint::{Ssl, Plain};
@@ -34,9 +33,11 @@ impl Api  {
         self.handlers.push(handler);
     }
 
-    pub async fn forward(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
+    /// Proxies a request to the appropriate endpoint
+    /// Invoking every handlers on request / response
+    pub async fn proxy(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
         let endpoint = self.endpoint_for(&req);
-        self.mut_req(&mut req);
+        endpoint.target_req_uri(&self.prefix, &mut req);
         for handler in &self.handlers {
             if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
                 return Ok(resp)
@@ -45,6 +46,7 @@ impl Api  {
         self.send(endpoint, req).await
     }
 
+    /// Sends the request to upstream and handles the response
     async fn send(&self, endpoint: &HttpEndpoint, req: Request<Body>) -> Result<Response<Body>, Error> {
         match endpoint {
             Ssl(e) => e.client.request(req),
@@ -61,24 +63,6 @@ impl Api  {
         }).await
     }
 
-    fn mut_req(&self, req: &mut Request<Body>) {
-        // TODO: complete request mapping (applying filters/map/policies/...)
-        // TODO: gateway headers (X-Forwarded-For, etc.)
-        let path = build_path(req.uri().path_and_query(), self.prefix.len());
-        *req.uri_mut() = match self.endpoint_for(req) {
-            HttpEndpoint::Plain(e) => format!(
-                "http://{}{}",
-                e.address.clone(),
-                path
-            ),
-            HttpEndpoint::Ssl(e) => format!(
-                "https://{}{}",
-                e.address.clone(),
-                path
-            ),
-        }.parse().unwrap();
-    }
-
     pub fn matches(&self, req: &Request<Body>) -> bool {
         req.uri().path().starts_with(&self.prefix)
     }
@@ -89,11 +73,3 @@ impl Api  {
     }
 }
 
-fn build_path(path: Option<&PathAndQuery>, from: usize) -> String {
-    let full_path = path.map(|x| x.as_str()).unwrap_or("");
-    if from > full_path.len() {
-        "".to_string()
-    } else {
-        full_path[from..].to_string()
-    }
-}
