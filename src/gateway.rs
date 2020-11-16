@@ -39,7 +39,7 @@ impl Service<Request<Body>> for Gateway {
                     return Ok(Response::builder().status(200).body(Body::empty()).unwrap())
                 }
                 match api {
-                    Some(api) => {
+                    Some(mut api) => {
                         let resp = api.proxy(req).await;
                         if resp.is_err() {
                             log::error!("{:?}", resp);

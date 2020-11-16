@@ -11,7 +11,7 @@ pub struct CorrelationIdTransformer {
 }
 
 impl Handler for CorrelationIdTransformer {
-    fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
+    fn handle_req(&mut self, req: &mut Request<Body>) -> HandlerResponse {
         let req_headers = req.headers_mut();
         if req_headers.get(self.header_name.clone()).is_some() {
             Continue
@@ -23,7 +23,7 @@ impl Handler for CorrelationIdTransformer {
         }
     }
 
-    fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
+    fn handle_res(&mut self, _res: &mut Response<Body>) -> HandlerResponse {
         Continue
     }
 }

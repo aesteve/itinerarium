@@ -9,12 +9,12 @@ pub struct LogRequestInterceptor {
 }
 
 impl Handler for LogRequestInterceptor {
-    fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
+    fn handle_req(&mut self, req: &mut Request<Body>) -> HandlerResponse {
         log::log!(self.level, "{:?}", req);
         Continue
     }
 
-    fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
+    fn handle_res(&mut self, _res: &mut Response<Body>) -> HandlerResponse {
         Continue
     }
 }
@@ -25,11 +25,11 @@ pub struct LogResponseInterceptor {
 }
 
 impl Handler for LogResponseInterceptor {
-    fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
+    fn handle_req(&mut self, _req: &mut Request<Body>) -> HandlerResponse {
         Continue
     }
 
-    fn handle_res(&self, req: &mut Response<Body>) -> HandlerResponse {
+    fn handle_res(&mut self, req: &mut Response<Body>) -> HandlerResponse {
         log::log!(self.level, "{:?}", req);
         Continue
     }

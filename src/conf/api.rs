@@ -35,10 +35,10 @@ impl Api  {
 
     /// Proxies a request to the appropriate endpoint
     /// Invoking every handlers on request / response
-    pub async fn proxy(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
+    pub async fn proxy(&mut self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
         let endpoint = self.endpoint_for(&req);
         endpoint.target_req_uri(&self.prefix, &mut req);
-        for handler in &self.handlers {
+        for handler in self.handlers.clone().iter_mut() { // FIXME: cloning here just doesn't achieve what we want
             if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
                 return Ok(resp)
             }
@@ -54,7 +54,7 @@ impl Api  {
         }.map(|res| {
             if res.is_err() { return res }
             let mut resp = res.unwrap();
-            for handler in &self.handlers {
+            for handler in self.handlers.clone().iter_mut() { // FIXME: cloning here just doesn't achieve what we want
                 if let HandlerResponse::Break(overriden) = handler.handle_res(&mut resp) {
                     return Ok(overriden)
                 }
