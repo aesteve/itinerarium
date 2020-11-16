@@ -75,8 +75,8 @@ mod tests {
                 Continue
             }
         }
-        let gw_port = 7200;
-        let backend_port = 7201;
+        let gw_port = 7102;
+        let backend_port = 7103;
         let path = "/shortcut";
         tokio::spawn(async move {
             test_server("something", backend_port).await
@@ -112,8 +112,8 @@ mod tests {
                 Continue
             }
         }
-        let gw_port = 7300;
-        let backend_port = 7301;
+        let gw_port = 7104;
+        let backend_port = 7105;
         let path = "/counter";
         tokio::spawn(async move {
             test_server("check X-Count header", backend_port).await
