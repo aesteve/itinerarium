@@ -4,6 +4,7 @@ use hyper::{Request, Body, Response, Error};
 use hyper::http::uri::PathAndQuery;
 use futures::FutureExt;
 use crate::conf::handlers::{HandlerResponse, Handler};
+use crate::conf::endpoint::HttpEndpoint::{Ssl, Plain};
 
 #[derive(Debug, Clone)]
 pub struct Api {
@@ -34,57 +35,33 @@ impl Api  {
     }
 
     pub async fn forward(&self, mut req: Request<Body>) -> Result<Response<Body>, Error> {
-        match self.endpoint_for(&req) {
-            HttpEndpoint::Plain(e) => {
-                self.mut_req(&mut req);
-                for handler in &self.handlers {
-                    if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
-                        return Ok(resp)
-                    }
-                }
-                e.client
-                    .request(req)
-                    .map(|res| {
-                        match res {
-                            Ok(mut resp) => {
-                                for handler in &self.handlers {
-                                    if let HandlerResponse::Break(overriden) = handler.handle_res(&mut resp) {
-                                        return Ok(overriden)
-                                    }
-                                }
-                                Ok(resp)
-                            },
-                            error => error
-                        }
-                    }).await
-            },
-            HttpEndpoint::Ssl(e) => {
-                self.mut_req(&mut req);
-                for handler in &self.handlers {
-                    if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
-                        return Ok(resp)
-                    }
-                }
-                e.client
-                    .request(req)
-                    .map(|res| {
-                        match res {
-                            Ok(mut resp) => {
-                                for handler in &self.handlers {
-                                    if let HandlerResponse::Break(overriden) = handler.handle_res(&mut resp) {
-                                        return Ok(overriden)
-                                    }
-                                }
-                                Ok(resp)
-                            },
-                            error => error
-                        }
-                    }).await
+        let endpoint = self.endpoint_for(&req);
+        self.mut_req(&mut req);
+        for handler in &self.handlers {
+            if let HandlerResponse::Break(resp) = handler.handle_req(&mut req) {
+                return Ok(resp)
             }
         }
+        self.send(endpoint, req).await
     }
 
-    pub fn mut_req(&self, req: &mut Request<Body>) {
+    async fn send(&self, endpoint: &HttpEndpoint, req: Request<Body>) -> Result<Response<Body>, Error> {
+        match endpoint {
+            Ssl(e) => e.client.request(req),
+            Plain(e) => e.client.request(req),
+        }.map(|res| {
+            if res.is_err() { return res }
+            let mut resp = res.unwrap();
+            for handler in &self.handlers {
+                if let HandlerResponse::Break(overriden) = handler.handle_res(&mut resp) {
+                    return Ok(overriden)
+                }
+            }
+            Ok(resp)
+        }).await
+    }
+
+    fn mut_req(&self, req: &mut Request<Body>) {
         // TODO: complete request mapping (applying filters/map/policies/...)
         // TODO: gateway headers (X-Forwarded-For, etc.)
         let path = build_path(req.uri().path_and_query(), self.prefix.len());
