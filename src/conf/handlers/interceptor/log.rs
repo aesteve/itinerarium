@@ -57,8 +57,8 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.register_handler(Box::new(LogRequestInterceptor { level: Level::Info }));
-            api.register_handler(Box::new(LogResponseInterceptor { level: Level::Warn }));
+            api.add_handler(Box::new(LogRequestInterceptor { level: Level::Info }));
+            api.add_handler(Box::new(LogResponseInterceptor { level: Level::Warn }));
             start_local_gateway(6000, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

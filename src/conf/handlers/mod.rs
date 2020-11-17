@@ -1,13 +1,13 @@
 use hyper::{Response, Body, Request};
 use dyn_clone::{clone_trait_object, DynClone};
 use std::fmt::Debug;
-
+use async_trait::async_trait;
 pub mod interceptor;
 pub mod transformer;
 
 pub enum HandlerResponse {
     Continue,               // move on to next handler
-    Break(Response<Body>)   // breaks and returns the response
+    Break(Response<Body>),  // breaks and returns the response
 }
 
 
@@ -16,7 +16,13 @@ pub trait Handler: Send + Debug + Sync + DynClone {
     fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse;
 }
 
+#[async_trait]
+pub trait ResponseTransformer: Send + Debug + Sync + DynClone {
+    async fn transform(&self, res: Response<Body>) -> Response<Body>;
+}
+
 clone_trait_object!(Handler);
+clone_trait_object!(ResponseTransformer);
 
 #[cfg(test)]
 mod tests {
@@ -51,7 +57,7 @@ mod tests {
         let path = "/shortcut";
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.register_handler(Box::new(BreakingHandler {}));
+            api.add_handler(Box::new(BreakingHandler {}));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -84,8 +90,8 @@ mod tests {
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             let origin = SystemTime::now();
-            api.register_handler(Box::new(TimeHandler { name: "time-1".to_string(), origin }));
-            api.register_handler(Box::new(TimeHandler { name: "time-2".to_string(), origin })); // <- should always be invoked after
+            api.add_handler(Box::new(TimeHandler { name: "time-1".to_string(), origin }));
+            api.add_handler(Box::new(TimeHandler { name: "time-2".to_string(), origin })); // <- should always be invoked after
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -120,7 +126,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.register_handler(Box::new(CountHandler { counter: Arc::new(AtomicU32::new(0)) }));
+            api.add_handler(Box::new(CountHandler { counter: Arc::new(AtomicU32::new(0)) }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

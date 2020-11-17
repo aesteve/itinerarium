@@ -81,7 +81,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
-            api.register_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
+            api.add_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -104,7 +104,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
-            api.register_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
+            api.add_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

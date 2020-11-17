@@ -1,8 +1,8 @@
 use crate::conf::endpoint::{HttpEndpoint};
 use std::string::ParseError;
 use hyper::{Request, Body, Response, Error};
-use futures::FutureExt;
-use crate::conf::handlers::{HandlerResponse, Handler};
+use futures::{FutureExt, TryFutureExt};
+use crate::conf::handlers::{HandlerResponse, Handler, ResponseTransformer};
 use crate::conf::endpoint::HttpEndpoint::{Ssl, Plain};
 
 #[derive(Debug, Clone)]
@@ -10,6 +10,7 @@ pub struct Api {
     pub prefix: String,
     pub endpoints: Vec<HttpEndpoint>,
     pub handlers: Vec<Box<dyn Handler>>,
+    pub transformer: Option<Box<dyn ResponseTransformer>>
 }
 
 impl Api  {
@@ -18,6 +19,7 @@ impl Api  {
             prefix,
             endpoints: vec![HttpEndpoint::http(host, port)?],
             handlers: vec![],
+            transformer: None,
         })
     }
 
@@ -26,11 +28,16 @@ impl Api  {
             prefix,
             endpoints: vec![HttpEndpoint::https(host)?],
             handlers: vec![],
+            transformer: None
         })
     }
 
-    pub fn register_handler(&mut self, handler: Box<dyn Handler>) {
+    pub fn add_handler(&mut self, handler: Box<dyn Handler>) {
         self.handlers.push(handler);
+    }
+
+    pub fn set_transformer(&mut self, transformer: Box<dyn ResponseTransformer>) {
+        self.transformer = Some(transformer);
     }
 
     /// Proxies a request to the appropriate endpoint
@@ -60,6 +67,12 @@ impl Api  {
                 }
             }
             Ok(resp)
+        }).and_then(|res| async move {
+            if let Some(transformer) = &self.transformer {
+                Ok(transformer.transform(res).await)
+            } else {
+                Ok(res)
+            }
         }).await
     }
 

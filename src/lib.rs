@@ -32,7 +32,7 @@ mod tests {
         }
     }
 
-    pub async fn test_server(payload: &'static str, port: u16) {
+    pub async fn test_server(payload: &str, port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let payload = payload.to_string();
         let make_svc = make_service_fn(|_conn| {
