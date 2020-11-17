@@ -439,6 +439,7 @@ dependencies = [
  "hyper-native-tls",
  "hyper-tls",
  "log 0.4.11",
+ "rand",
  "serde_json",
  "simple_logger",
  "tokio",
