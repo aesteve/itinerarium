@@ -133,7 +133,9 @@ mod tests {
         let client = Client::new();
         let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, path).as_str()).unwrap();
         client.get(url.clone()).await.unwrap();
+        let client = Client::new(); // create a new Client => new connection?
         client.get(url.clone()).await.unwrap();
+        let client = Client::new(); // create a new Client => new connection?
         client.get(url.clone()).await.unwrap();
         let resp = client.get(url).await.unwrap();
         assert_eq!(StatusCode::OK, resp.status());
