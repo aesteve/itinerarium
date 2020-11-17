@@ -47,14 +47,13 @@ impl ResponseTransformer for JsonPointer {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{test_server, wait_for_gateway};
+    use crate::tests::{test_server, wait_for_gateway, unwrap_body_as_str};
     use serde_json::json;
     use crate::conf::api::Api;
     use crate::conf::handlers::transformer::json_pointer::JsonPointer;
     use crate::gateway::start_local_gateway;
     use hyper::{Client, Uri, StatusCode};
     use std::str::FromStr;
-    use crate::utils::unwrap_body_as_str;
 
     #[tokio::test]
     async fn test_pointer() {

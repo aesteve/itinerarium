@@ -137,11 +137,20 @@ mod tests {
         client.get(url.clone()).await.unwrap();
         let client = Client::new(); // create a new Client => new connection?
         client.get(url.clone()).await.unwrap();
+        let resp = client.get(url.clone()).await.unwrap();
+        assert_eq!(StatusCode::OK, resp.status());
+        let headers = resp.headers();
+        let count: u32 = headers.get("X-Count").unwrap().to_str().unwrap().parse().unwrap();
+        assert_eq!(count, 4);
+        drop(client);
+
+        // try to drop the client to create a new connection
+        let client = Client::new();
         let resp = client.get(url).await.unwrap();
         assert_eq!(StatusCode::OK, resp.status());
         let headers = resp.headers();
         let count: u32 = headers.get("X-Count").unwrap().to_str().unwrap().parse().unwrap();
-        assert_eq!(count, 4); // does not work, since handlers are cloned for every incoming request
+        assert_eq!(count, 5);
     }
 
 }

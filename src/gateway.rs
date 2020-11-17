@@ -92,9 +92,8 @@ mod tests {
     use hyper::service::{make_service_fn, service_fn};
     use std::net::SocketAddr;
     use crate::gateway::{start_local_gateway};
-    use crate::utils::unwrap_body_as_str;
     use crate::conf::api::Api;
-    use crate::tests::{test_server, wait_for_gateway};
+    use crate::tests::{test_server, wait_for_gateway, unwrap_body_as_str};
     use std::str::FromStr;
     use hyper::http::HeaderValue;
     use log::*;

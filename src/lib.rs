@@ -22,6 +22,14 @@ mod tests {
     use std::net::SocketAddr;
     use std::str::FromStr;
     use log::*;
+    use crate::utils::body_as_str;
+
+
+    pub(crate) async fn unwrap_body_as_str(resp: Response<Body>) -> String {
+        body_as_str(resp)
+            .await
+            .unwrap()
+    }
 
     pub async fn wait_for_gateway(port: u16) {
         let mut attempts = 0;
