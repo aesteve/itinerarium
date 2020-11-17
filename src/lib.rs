@@ -1,18 +1,7 @@
-use crate::gateway::{start_local_gateway};
-use crate::conf::api::Api;
-use hyper::Error;
-
 pub mod conf;
-pub mod utils;
 pub mod gateway;
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    start_local_gateway(
-        1234,
-        vec![Api::https("swapi.dev", "/swapi".to_string()).unwrap()]
-    ).await
-}
+pub(crate) mod utils;
+pub mod handlers;
 
 #[cfg(test)]
 mod tests {
@@ -23,7 +12,6 @@ mod tests {
     use std::str::FromStr;
     use log::*;
     use crate::utils::body_as_str;
-
 
     pub(crate) async fn unwrap_body_as_str(resp: Response<Body>) -> String {
         body_as_str(resp)

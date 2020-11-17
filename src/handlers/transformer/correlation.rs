@@ -1,6 +1,6 @@
 use hyper::{Request, Body, Response};
-use crate::conf::handlers::{HandlerResponse, Handler};
-use crate::conf::handlers::HandlerResponse::Continue;
+use crate::handlers::{HandlerResponse, Handler};
+use crate::handlers::HandlerResponse::Continue;
 use uuid::Uuid;
 use hyper::header::{HeaderValue, HeaderName};
 use std::str::FromStr;
@@ -36,11 +36,10 @@ mod tests {
     use std::convert::Infallible;
     use crate::conf::api::Api;
     use crate::gateway::start_local_gateway;
-    use crate::tests::wait_for_gateway;
+    use crate::tests::{wait_for_gateway, unwrap_body_as_str};
     use std::str::FromStr;
-    use crate::utils::unwrap_body_as_str;
     use uuid::Uuid;
-    use crate::conf::handlers::transformer::correlation::CorrelationIdTransformer;
+    use crate::handlers::transformer::correlation::CorrelationIdTransformer;
     use hyper::header::HeaderValue;
     use log::*;
 

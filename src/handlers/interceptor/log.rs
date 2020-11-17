@@ -1,7 +1,7 @@
 use hyper::{Request, Body, Response};
 use log::{Level};
-use crate::conf::handlers::{HandlerResponse, Handler};
-use crate::conf::handlers::HandlerResponse::Continue;
+use crate::handlers::{HandlerResponse, Handler};
+use crate::handlers::HandlerResponse::Continue;
 
 #[derive(Debug, Clone)]
 pub struct LogRequestInterceptor {
@@ -44,7 +44,7 @@ mod tests {
     use std::str::FromStr;
     use crate::tests::{test_server, wait_for_gateway};
     use crate::conf::api::Api;
-    use crate::conf::handlers::interceptor::log::{LogRequestInterceptor, LogResponseInterceptor};
+    use crate::handlers::interceptor::log::{LogRequestInterceptor, LogResponseInterceptor};
 
     #[tokio::test]
     async fn test_log_request() {

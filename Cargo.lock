@@ -253,23 +253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gateway"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "dyn-clone",
- "futures",
- "hyper 0.13.9",
- "hyper-native-tls",
- "hyper-tls",
- "log 0.4.11",
- "serde_json",
- "simple_logger",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -443,6 +426,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2b3ea6ff95e175473f8ffe6a7eb7c00d054240321b84c57051175fe3c1e075e"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "itinerarium"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "dyn-clone",
+ "futures",
+ "hyper 0.13.9",
+ "hyper-native-tls",
+ "hyper-tls",
+ "log 0.4.11",
+ "serde_json",
+ "simple_logger",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

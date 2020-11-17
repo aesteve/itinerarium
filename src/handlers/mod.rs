@@ -27,9 +27,9 @@ clone_trait_object!(ResponseTransformer);
 #[cfg(test)]
 mod tests {
     use crate::tests::{wait_for_gateway, test_server};
-    use crate::conf::handlers::{Handler, HandlerResponse};
+    use crate::handlers::{Handler, HandlerResponse};
     use hyper::{Client, Response, Request, Body, StatusCode, Uri};
-    use crate::conf::handlers::HandlerResponse::{Continue, Break};
+    use crate::handlers::HandlerResponse::{Continue, Break};
     use crate::gateway::start_local_gateway;
     use crate::conf::api::Api;
     use std::str::FromStr;

@@ -2,7 +2,7 @@ use crate::conf::endpoint::{HttpEndpoint};
 use std::string::ParseError;
 use hyper::{Request, Body, Response, Error};
 use futures::{FutureExt, TryFutureExt};
-use crate::conf::handlers::{HandlerResponse, Handler, ResponseTransformer};
+use crate::handlers::{HandlerResponse, Handler, ResponseTransformer};
 use crate::conf::endpoint::HttpEndpoint::{Ssl, Plain};
 
 #[derive(Debug, Clone)]

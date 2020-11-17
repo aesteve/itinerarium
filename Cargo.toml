@@ -1,5 +1,5 @@
 [package]
-name = "gateway"
+name = "itinerarium"
 version = "0.0.1"
 authors = ["aesteve <arnaud.esteve@gmail.com>"]
 edition = "2018"

@@ -1,4 +1,4 @@
-use crate::conf::handlers::{ResponseTransformer};
+use crate::handlers::{ResponseTransformer};
 use hyper::{Response, Body, StatusCode};
 use async_trait::async_trait;
 use crate::utils::{body_as_str};
@@ -50,7 +50,7 @@ mod tests {
     use crate::tests::{test_server, wait_for_gateway, unwrap_body_as_str};
     use serde_json::json;
     use crate::conf::api::Api;
-    use crate::conf::handlers::transformer::json_pointer::JsonPointer;
+    use crate::handlers::transformer::json_pointer::JsonPointer;
     use crate::gateway::start_local_gateway;
     use hyper::{Client, Uri, StatusCode};
     use std::str::FromStr;

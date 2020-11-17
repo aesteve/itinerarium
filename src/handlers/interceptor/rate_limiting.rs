@@ -1,5 +1,5 @@
 use tokio::time::Duration;
-use crate::conf::handlers::{Handler, HandlerResponse};
+use crate::handlers::{Handler, HandlerResponse};
 use hyper::{Response, Request, Body, StatusCode};
 use std::time::Instant;
 use std::collections::VecDeque;
@@ -66,7 +66,7 @@ mod tests {
     use crate::tests::{test_server, wait_for_gateway};
     use crate::conf::api::Api;
     use crate::gateway::start_local_gateway;
-    use crate::conf::handlers::interceptor::rate_limiting::RateLimiter;
+    use crate::handlers::interceptor::rate_limiting::RateLimiter;
     use tokio::time::{Duration, delay_for};
     use hyper::{Client, Uri, StatusCode};
     use std::str::FromStr;

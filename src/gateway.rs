@@ -97,6 +97,7 @@ mod tests {
     use std::str::FromStr;
     use hyper::http::HeaderValue;
     use log::*;
+    use serde_json::Value;
 
     async fn echo_path_server(port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
@@ -169,23 +170,23 @@ mod tests {
         for (_, path, payload) in backends {
             let url = Uri::from_str(format!("{}{}", gw_url, path).as_str()).unwrap();
             let resp = client.get(url).await.unwrap();
-            assert_eq!(200, resp.status());
+            assert_eq!(StatusCode::OK, resp.status());
             assert_eq!(payload, unwrap_body_as_str(resp).await);
         }
 
         let url = Uri::from_str(format!("{}{}", gw_url, path_3).as_str()).unwrap();
         let resp = client.get(url).await.unwrap();
-        assert_eq!(502, resp.status());
+        assert_eq!(StatusCode::BAD_GATEWAY, resp.status());
 
         let url = Uri::from_str(format!("{}/fourth", gw_url).as_str()).unwrap();
         let resp = client.get(url).await.unwrap();
-        assert_eq!(404, resp.status());
+        assert_eq!(StatusCode::NOT_FOUND, resp.status());
     }
 
     #[tokio::test]
     async fn check_path() {
-        let gw_port = 4000;
-        let backend_port = 4001;
+        let gw_port = 3010;
+        let backend_port = 3011;
         let prefix = "/echo";
         let path = "/some/path?and_query=value";
         tokio::spawn(async move {
@@ -193,7 +194,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let apis = vec![
-                Api::http("127.0.0.1", 4001, prefix.to_string()).unwrap(),
+                Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap(),
             ];
             start_local_gateway(gw_port, apis).await
         });
@@ -202,15 +203,15 @@ mod tests {
         let gw_url = format!("http://127.0.0.1:{}", gw_port);
         let url = Uri::from_str(format!("{}{}{}", gw_url, prefix, path).as_str()).unwrap();
         let resp = client.get(url).await.unwrap();
-        assert_eq!(200, resp.status());
+        assert_eq!(StatusCode::OK, resp.status());
         let body_str = unwrap_body_as_str(resp).await;
         assert_eq!(path, body_str);
     }
 
     #[tokio::test]
     async fn check_forwarded_body() {
-        let gw_port = 5000;
-        let backend_port = 5001;
+        let gw_port = 3020;
+        let backend_port = 3021;
         let prefix = "/echo";
         tokio::spawn(async move {
             echo_body_server(backend_port).await
@@ -233,15 +234,15 @@ mod tests {
                 .body(body.into())
                 .unwrap()
         ).await.unwrap();
-        assert_eq!(200, resp.status());
+        assert_eq!(StatusCode::OK, resp.status());
         let body_str = unwrap_body_as_str(resp).await;
         assert_eq!(body, body_str);
     }
 
     #[tokio::test]
     async fn check_forwarded_headers() {
-        let gw_port = 2000;
-        let backend_port = 2001;
+        let gw_port = 3030;
+        let backend_port = 3031;
         let header = "X-Something-custom";
         let header_value = "some-value";
         let prefix = "/echo-header";
@@ -287,8 +288,35 @@ mod tests {
                 .body(Body::empty())
                 .unwrap()
         ).await.unwrap();
-        assert_eq!(200, resp.status());
+        assert_eq!(StatusCode::OK, resp.status());
         assert_eq!(resp.headers().get(header).unwrap(), format!("{}-forwarded", header_value).as_str());
+    }
+
+    #[tokio::test]
+    async fn test_http_to_https_by_using_swapi() {
+        let gw_port = 3040;
+        let prefix = "/swapi";
+        tokio::spawn(async move {
+            start_local_gateway(
+                gw_port,
+                vec![Api::https("swapi.dev", prefix.to_string()).unwrap()]
+            ).await.unwrap();
+        });
+        wait_for_gateway(gw_port).await;
+        let client = Client::new();
+        let url = Uri::from_str(format!("http://127.0.0.1:{}{}/api/people/1/", gw_port, prefix).as_str()).unwrap();
+        let req = Request::builder()
+            .method("GET")
+            .uri(url)
+            .header("Accept", "application/json")
+            .body(Body::empty())
+            .unwrap();
+        let resp = client.request(req).await.unwrap();
+        assert_eq!(StatusCode::OK, resp.status());
+        let body = unwrap_body_as_str(resp).await;
+        let json: Value = serde_json::from_str(body.as_str()).unwrap();
+        assert_eq!("Luke Skywalker", json.get("name").unwrap().as_str().unwrap());
+
     }
 
 }
