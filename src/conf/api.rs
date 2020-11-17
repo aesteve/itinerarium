@@ -80,7 +80,7 @@ impl Api  {
             Ok(resp)
         }).and_then(|res| async move {
             let resp = if let Some(transformer) = &self.transformer {
-                transformer.clone().transform(res).await
+                transformer.transform(res).await
             } else {
                 res
             };
