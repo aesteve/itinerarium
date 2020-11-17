@@ -66,7 +66,6 @@ impl Api  {
 
     /// Sends the request to upstream and handles the response
     async fn send(&self, endpoint: &HttpEndpoint, req: Request<Body>, hooks: &[Box<dyn Hook>]) -> Result<Response<Body>, Error> {
-        let before = Insta
         match endpoint {
             Ssl(e) => e.client.request(req),
             Plain(e) => e.client.request(req),

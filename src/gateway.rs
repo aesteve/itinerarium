@@ -5,7 +5,6 @@ use std::pin::Pin;
 use std::future::Future;
 use crate::conf::api::Api;
 use log::info;
-use std::time::Instant;
 
 type PinnedResponseFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, Error>> + Send>>;
 type PinnedGatewayFuture = Pin<Box<dyn Future<Output = Result<Gateway, Error>> + Send>>;

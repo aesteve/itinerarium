@@ -310,7 +310,7 @@ mod tests {
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();
-        let reqs: Vec<ResponseFuture> = (1..100_usize).into_iter().map(|_| {
+        let reqs: Vec<ResponseFuture> = (1..10_usize).into_iter().map(|_| {
             let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, path).as_str()).unwrap();
             let req = Request::builder()
                 .uri(url)
