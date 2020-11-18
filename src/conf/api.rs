@@ -5,7 +5,7 @@ use futures::{FutureExt, TryFutureExt};
 use crate::handlers::{HandlerResponse, Handler, ResponseTransformer, Hook, HookFactory};
 use crate::conf::endpoint::HttpEndpoint::{Ssl, Plain};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Api {
     pub prefix: String,
     pub endpoints: Vec<HttpEndpoint>,

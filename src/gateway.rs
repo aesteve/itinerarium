@@ -5,12 +5,13 @@ use std::pin::Pin;
 use std::future::Future;
 use crate::conf::api::Api;
 use log::info;
+use std::sync::Arc;
 
 type PinnedResponseFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, Error>> + Send>>;
 type PinnedGatewayFuture = Pin<Box<dyn Future<Output = Result<Gateway, Error>> + Send>>;
 
 pub async fn start_local_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error> {
-    let gateway = MkGateway { apis };
+    let gateway = MkGateway { apis: apis.into_iter().map(Arc::new).collect() };
     let in_addr = ([127, 0, 0, 1], port).into();
     let server = Server::bind(&in_addr).serve(gateway);
     info!("Listening on http://{}", in_addr);
@@ -18,7 +19,7 @@ pub async fn start_local_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error>
 }
 
 pub struct Gateway {
-    apis: Vec<Api>
+    apis: Vec<Arc<Api>>
 }
 
 impl Service<Request<Body>> for Gateway {
@@ -31,7 +32,7 @@ impl Service<Request<Body>> for Gateway {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let api: Option<Api> = self.match_path(&req).cloned();
+        let api: Option<Arc<Api>> = self.match_path(&req).cloned();
         Box::pin(
             async move {
                 let path = req.uri().path();
@@ -61,13 +62,13 @@ impl Service<Request<Body>> for Gateway {
 }
 
 impl Gateway {
-    fn match_path(&self, req: &Request<Body>) -> Option<&Api> {
+    fn match_path(&self, req: &Request<Body>) -> Option<&Arc<Api>> {
         self.apis.iter().find(|api| api.matches(req))
     }
 }
 
 pub struct MkGateway {
-    pub apis: Vec<Api>
+    pub apis: Vec<Arc<Api>>
 }
 impl <T> Service<T> for MkGateway {
     type Response = Gateway;

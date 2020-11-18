@@ -1,5 +1,4 @@
 use hyper::{Response, Body, Request};
-use dyn_clone::{clone_trait_object, DynClone};
 use std::fmt::Debug;
 use async_trait::async_trait;
 pub mod interceptor;
@@ -10,30 +9,24 @@ pub enum HandlerResponse {
     Break(Response<Body>),  // breaks and returns the response
 }
 
-
-pub trait Handler: Send + Debug + Sync + DynClone {
+pub trait Handler: Send + Debug + Sync {
     fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse;
     fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse;
 }
 
-pub trait Hook: Send + Debug + Sync + DynClone {
+pub trait Hook: Send + Debug + Sync {
     fn on_request(&self, req: &Request<Body>);
     fn on_response(&self, req: &Response<Body>);
 }
 
-pub trait HookFactory: Send + Debug + Sync + DynClone {
+pub trait HookFactory: Send + Debug + Sync {
     fn create(&self) -> Box<dyn Hook>;
 }
 
 #[async_trait]
-pub trait ResponseTransformer: Send + Debug + Sync + DynClone {
+pub trait ResponseTransformer: Send + Debug + Sync {
     async fn transform(&self, res: Response<Body>) -> Response<Body>;
 }
-
-clone_trait_object!(Handler);
-clone_trait_object!(Hook);
-clone_trait_object!(HookFactory);
-clone_trait_object!(ResponseTransformer);
 
 #[cfg(test)]
 mod tests {
@@ -322,7 +315,7 @@ mod tests {
         let mut dur = durations.lock().unwrap();
         dur.sort();
         for duration in dur.iter() {
-            println!("duration is: {:?}", duration);
+            info!("duration is: {:?}", duration);
         }
     }
 
