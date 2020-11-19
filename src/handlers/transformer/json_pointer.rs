@@ -1,59 +1,54 @@
-use crate::handlers::{ResponseTransformer};
-use hyper::{Response, Body, StatusCode};
-use async_trait::async_trait;
-use crate::utils::{body_as_str};
-use serde_json::Value;
+#[cfg(test)]
+mod tests {
+    use crate::tests::{test_server, wait_for_gateway, unwrap_body_as_str, body_as_str};
+    use serde_json::{json, Value};
+    use crate::conf::api::Api;
+    use crate::gateway::start_local_gateway;
+    use hyper::{Client, Uri, StatusCode, Response, Body};
+    use std::str::FromStr;
+    use crate::handlers::ResponseFinalizer;
+    use async_trait::async_trait;
 
+    #[derive(Debug, Clone)]
+    struct JsonPointer {
+        pointer: String
+    }
 
-#[derive(Debug, Clone)]
-struct JsonPointer {
-    pointer: String
-}
+    #[async_trait]
+    impl ResponseFinalizer for JsonPointer {
+        async fn transform(&self, res: Response<Body>) -> Response<Body> {
+            match body_as_str(res).await {
+                Err(err) => {
+                    log::error!("Could not extract response body {:?}", err);
+                    Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap()
+                },
+                Ok(body) => {
+                    match serde_json::from_str::<Value>(body.as_str()) {
+                        Err(err) => {
+                            log::error!("Could not read body as json {:?}", err);
+                            Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap()
 
-#[async_trait]
-impl ResponseTransformer for JsonPointer {
-    async fn transform(&self, res: Response<Body>) -> Response<Body> {
-        match body_as_str(res).await {
-            Err(err) => {
-                log::error!("Could not extract response body {:?}", err);
-                Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap()
-            },
-            Ok(body) => {
-                match serde_json::from_str::<Value>(body.as_str()) {
-                    Err(err) => {
-                        log::error!("Could not read body as json {:?}", err);
-                        Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap()
-
-                    },
-                    Ok(json) => {
-                        match json.pointer(self.pointer.as_str()) {
-                            None => Response::builder().status(StatusCode::NOT_FOUND).body(Body::empty()).unwrap(),
-                            Some(value) => {
-                                let payload = value.to_string();
-                                Response::builder()
-                                    .status(StatusCode::OK)
-                                    .body(Body::from(payload))
-                                    .unwrap()
+                        },
+                        Ok(json) => {
+                            match json.pointer(self.pointer.as_str()) {
+                                None => Response::builder().status(StatusCode::NOT_FOUND).body(Body::empty()).unwrap(),
+                                Some(value) => {
+                                    let payload = value.to_string();
+                                    Response::builder()
+                                        .status(StatusCode::OK)
+                                        .body(Body::from(payload))
+                                        .unwrap()
+                                }
                             }
-                        }
 
+                        }
                     }
                 }
             }
+
         }
-
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::tests::{test_server, wait_for_gateway, unwrap_body_as_str};
-    use serde_json::json;
-    use crate::conf::api::Api;
-    use crate::handlers::transformer::json_pointer::JsonPointer;
-    use crate::gateway::start_local_gateway;
-    use hyper::{Client, Uri, StatusCode};
-    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_pointer() {
@@ -67,9 +62,9 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api_1 = Api::http("127.0.0.1", backend_port, prefix_1.to_string()).unwrap();
-            api_1.set_transformer(Box::new(JsonPointer { pointer: "/string".to_string() }));
+            api_1.finalize_with(Box::new(JsonPointer { pointer: "/string".to_string() }));
             let mut api_2 = Api::http("127.0.0.1", backend_port, prefix_2.to_string()).unwrap();
-            api_2.set_transformer(Box::new(JsonPointer { pointer: "/array/2".to_string() }));
+            api_2.finalize_with(Box::new(JsonPointer { pointer: "/array/2".to_string() }));
             start_local_gateway(gw_port, vec![api_1, api_2]).await.unwrap();
         });
         wait_for_gateway(gw_port).await;

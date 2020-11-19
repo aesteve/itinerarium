@@ -1,6 +1,6 @@
 use hyper::{Request, Body, Response};
 use log::{Level};
-use crate::handlers::{HandlerResponse, Handler};
+use crate::handlers::{HandlerResponse, GlobalHandler};
 use crate::handlers::HandlerResponse::Continue;
 
 #[derive(Debug, Clone)]
@@ -8,7 +8,7 @@ pub struct LogRequestInterceptor {
     pub level: Level,
 }
 
-impl Handler for LogRequestInterceptor {
+impl GlobalHandler for LogRequestInterceptor {
     fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
         log::log!(self.level, "{:?}", req);
         Continue
@@ -24,7 +24,7 @@ pub struct LogResponseInterceptor {
     pub level: Level,
 }
 
-impl Handler for LogResponseInterceptor {
+impl GlobalHandler for LogResponseInterceptor {
     fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
         Continue
     }
@@ -57,8 +57,8 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_handler(Box::new(LogRequestInterceptor { level: Level::Info }));
-            api.add_handler(Box::new(LogResponseInterceptor { level: Level::Warn }));
+            api.add_global_handler(Box::new(LogRequestInterceptor { level: Level::Info }));
+            api.add_global_handler(Box::new(LogResponseInterceptor { level: Level::Warn }));
             start_local_gateway(6000, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

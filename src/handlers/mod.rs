@@ -4,34 +4,44 @@ use async_trait::async_trait;
 pub mod interceptor;
 pub mod transformer;
 
+/// Controls the Gateway flow
+/// After an Handler has been invoked, should it move on and invoke the next Handler in the chain
+/// Or circuit-break and return the Response immediately
 pub enum HandlerResponse {
     Continue,               // move on to next handler
-    Break(Response<Body>),  // breaks and returns the response
+    Break(Response<Body>),  // breaks and returns the response immediately
 }
 
-pub trait Handler: Send + Debug + Sync {
+/// Global for the whole gateway lifetime
+/// i.e. a single handler for all the requests/responses
+pub trait GlobalHandler: Send + Debug + Sync {
     fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse;
     fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse;
 }
 
-pub trait Hook: Send + Debug + Sync {
-    fn on_request(&self, req: &Request<Body>);
-    fn on_response(&self, req: &Response<Body>);
+/// Scoped to a single request/response flow
+/// i.e. a new Handler is created when the request is hitting the gateway, and dropped when the response is sent back
+pub trait ScopedHandler: Send + Debug + Sync {
+    fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse;
+    fn handle_res(&self, req: &mut Response<Body>) -> HandlerResponse;
 }
 
-pub trait HookFactory: Send + Debug + Sync {
-    fn create(&self) -> Box<dyn Hook>;
+/// Creates a ScopedHandler for every incoming request
+pub trait ScopedHandlerFactory: Send + Debug + Sync {
+    fn create(&self) -> Box<dyn ScopedHandler>;
 }
 
+/// Takes ownership of the upstream response, maps it, and return a new response
+/// Async cause reading the response body may be async
 #[async_trait]
-pub trait ResponseTransformer: Send + Debug + Sync {
+pub trait ResponseFinalizer: Send + Debug + Sync {
     async fn transform(&self, res: Response<Body>) -> Response<Body>;
 }
 
 #[cfg(test)]
 mod tests {
     use crate::tests::{wait_for_gateway, test_server};
-    use crate::handlers::{Handler, HandlerResponse, Hook, HookFactory};
+    use crate::handlers::{GlobalHandler, HandlerResponse, ScopedHandler, ScopedHandlerFactory};
     use hyper::{Client, Server, Response, Request, Body, StatusCode, Uri};
     use crate::handlers::HandlerResponse::{Continue, Break};
     use crate::gateway::start_local_gateway;
@@ -49,12 +59,11 @@ mod tests {
     use rand::{Rng};
     use hyper::client::ResponseFuture;
 
-
     #[tokio::test]
     async fn test_break() {
         #[derive(Debug, Clone)]
         struct BreakingHandler {}
-        impl Handler for BreakingHandler {
+        impl GlobalHandler for BreakingHandler {
             fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
                 Break(Response::builder().status(StatusCode::GONE).body(Body::empty()).unwrap())
             }
@@ -68,7 +77,7 @@ mod tests {
         let path = "/shortcut";
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_handler(Box::new(BreakingHandler {}));
+            api.add_global_handler(Box::new(BreakingHandler {}));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -81,7 +90,7 @@ mod tests {
     #[tokio::test]
     async fn test_chain_response_handlers() {
         #[derive(Debug, Clone)] struct TimeHandler { name: String, origin: SystemTime }
-        impl Handler for TimeHandler {
+        impl GlobalHandler for TimeHandler {
             fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
                 Continue
             }
@@ -101,8 +110,8 @@ mod tests {
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             let origin = SystemTime::now();
-            api.add_handler(Box::new(TimeHandler { name: "time-1".to_string(), origin }));
-            api.add_handler(Box::new(TimeHandler { name: "time-2".to_string(), origin })); // <- should always be invoked after
+            api.add_global_handler(Box::new(TimeHandler { name: "time-1".to_string(), origin }));
+            api.add_global_handler(Box::new(TimeHandler { name: "time-2".to_string(), origin })); // <- should always be invoked after
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -119,7 +128,7 @@ mod tests {
     #[tokio::test]
     async fn test_mut_handler() {
         #[derive(Debug, Clone)] struct CountHandler { counter: Arc<AtomicU32> }
-        impl Handler for CountHandler {
+        impl GlobalHandler for CountHandler {
             fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
                 Continue
             }
@@ -137,7 +146,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_handler(Box::new(CountHandler { counter: Arc::new(AtomicU32::new(0)) }));
+            api.add_global_handler(Box::new(CountHandler { counter: Arc::new(AtomicU32::new(0)) }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -165,10 +174,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mut_hook() {
-        #[derive(Debug, Clone)] struct TestHook { id: Arc<Mutex<Option<usize>>> }
-        impl Hook for TestHook {
-            fn on_request(&self, req: &Request<Body>) {
+    async fn test_scoped_handler() {
+        #[derive(Debug, Clone)] struct TestScopedHandler { id: Arc<Mutex<Option<usize>>> }
+        impl ScopedHandler for TestScopedHandler {
+            fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
                 // Store the received X-Id locally
                 if let Some(id) = self.id.lock().unwrap().as_mut() {
                     *id = req.headers()
@@ -179,23 +188,23 @@ mod tests {
                         .parse()
                         .unwrap()
                 }
+                Continue
             }
-            fn on_response(&self, res: &Response<Body>) {
+            fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse {
                 // The response X-Id (since echoed back) should match the local id, no matter the order in responses
                 let id: usize = res.headers().get("X-Id").unwrap().to_str().unwrap().parse().unwrap();
                 let this_id = self.id.lock().unwrap().unwrap();
                 if this_id != id {
-                    panic!("Received X-Id {:?}. Self.id is {}", id, this_id);
-                } else {
-                    info!("Correct id")
+                    return Break(Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap())
                 }
+                Continue
             }
         }
         #[derive(Debug, Clone)]
-        struct TestHookFactory {};
-        impl HookFactory for TestHookFactory {
-            fn create(&self) -> Box<dyn Hook> {
-                Box::new(TestHook { id: Arc::new(Mutex::new(Some(0)))})
+        struct TestScopedFactory {};
+        impl ScopedHandlerFactory for TestScopedFactory {
+            fn create(&self) -> Box<dyn ScopedHandler> {
+                Box::new(TestScopedHandler { id: Arc::new(Mutex::new(Some(0)))})
             }
         }
         let gw_port = 7130;
@@ -229,7 +238,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_hook(Box::new(TestHookFactory {}));
+            api.add_scoped_handler(Box::new(TestScopedFactory {}));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -247,30 +256,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn measure_response_time() {
-        let durations: Arc<Mutex<Vec<Duration>>> = Arc::new(Mutex::new(Vec::new()));
-        #[derive(Debug, Clone)] struct ResponseDurationHook { start: Arc<Mutex<Option<Instant>>>, durations: Arc<Mutex<Vec<Duration>>>}
-        impl Hook for ResponseDurationHook {
-            fn on_request(&self, _req: &Request<Body>) {
+    async fn measure_response_time_by_using_scoped_handler() {
+        #[derive(Debug, Clone)] struct ResponseDurationScoped { start: Arc<Mutex<Option<Instant>>>}
+        impl ScopedHandler for ResponseDurationScoped {
+            fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
                 if let Some(id) = self.start.lock().unwrap().as_mut() {
                     *id = Instant::now()
                 }
+                Continue
             }
-            fn on_response(&self, _res: &Response<Body>) {
+            fn handle_res(&self, res: &mut Response<Body>) -> HandlerResponse {
                 let start: Instant = self.start.lock().unwrap().unwrap();
-                self.durations.lock().unwrap().push(start.elapsed());
+                res.headers_mut()
+                    .insert(
+                        "X-Response-Time",
+                        HeaderValue::from(start.elapsed().as_millis() as u32)
+                    );
+                Continue
             }
         }
         #[derive(Debug, Clone)]
-        struct ResponseDurationHookFactory { durations: Arc<Mutex<Vec<Duration>>> };
-        impl HookFactory for ResponseDurationHookFactory {
-            fn create(&self) -> Box<dyn Hook> {
-                Box::new(ResponseDurationHook { start: Arc::new(Mutex::new(Some(Instant::now()))), durations: self.durations.clone() })
+        struct ResponseDurationScopedFactory {};
+        impl ScopedHandlerFactory for ResponseDurationScopedFactory {
+            fn create(&self) -> Box<dyn ScopedHandler> {
+                Box::new(ResponseDurationScoped { start: Arc::new(Mutex::new(Some(Instant::now()))) })
             }
         }
         let gw_port = 7140;
         let backend_port = 7141;
         let path = "/response_duration";
+        let sleep = 200;
         tokio::spawn(async move {
             let addr = SocketAddr::from(([127, 0, 0, 1], backend_port));
             let make_svc = make_service_fn(|_conn| {
@@ -278,7 +293,7 @@ mod tests {
                     Ok::<_, Infallible>(
                         service_fn(move |_req| {
                             async move {
-                                delay_for(Duration::from_millis(rand::rngs::OsRng.gen_range(400, 500))).await;
+                                delay_for(Duration::from_millis(sleep)).await;
                                 let resp = Response::builder()
                                     .status(StatusCode::OK)
                                     .body(Body::empty())
@@ -295,15 +310,16 @@ mod tests {
                 error!("server error: {}", e);
             }
         });
-        let durations_cloned = durations.clone();
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_hook(Box::new(ResponseDurationHookFactory { durations: durations_cloned }));
+            api.add_scoped_handler(Box::new(ResponseDurationScopedFactory {}));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
-        let client = Client::new();
-        let reqs: Vec<ResponseFuture> = (1..10_usize).into_iter().map(|_| {
+        let nb_req = 10;
+        let reqs: Vec<ResponseFuture> = (0..nb_req).into_iter()
+            .map(|_| {
+            let client = Client::new();
             let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, path).as_str()).unwrap();
             let req = Request::builder()
                 .uri(url)
@@ -311,11 +327,25 @@ mod tests {
                 .unwrap();
             client.request(req)
         }).collect();
-        futures::future::join_all(reqs).await;
-        let mut dur = durations.lock().unwrap();
-        dur.sort();
-        for duration in dur.iter() {
+        let durs: Vec<Duration> = futures::future::join_all(reqs)
+            .await
+            .iter()
+            .filter_map(|res| {
+                match res {
+                    Ok(resp) => {
+                        let millis = u64::from_str(resp.headers().get("X-Response-Time").unwrap().to_str().unwrap()).unwrap();
+                        Some(Duration::from_millis(millis))
+                    },
+                    _ => None
+                }
+            })
+            .collect();
+        assert_eq!(nb_req, durs.len());
+        let gw_max_overhead = Duration::from_millis(20);
+        for duration in durs.iter() {
             info!("duration is: {:?}", duration);
+            assert!(*duration <= Duration::from_millis(sleep) + gw_max_overhead);
+            assert!(*duration >= Duration::from_millis(sleep));
         }
     }
 

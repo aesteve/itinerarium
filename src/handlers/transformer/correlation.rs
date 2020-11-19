@@ -1,33 +1,3 @@
-use hyper::{Request, Body, Response};
-use crate::handlers::{HandlerResponse, Handler};
-use crate::handlers::HandlerResponse::Continue;
-use uuid::Uuid;
-use hyper::header::{HeaderValue, HeaderName};
-use std::str::FromStr;
-
-#[derive(Debug, Clone)]
-pub struct CorrelationIdTransformer {
-    header_name: String
-}
-
-impl Handler for CorrelationIdTransformer {
-    fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
-        let req_headers = req.headers_mut();
-        if req_headers.get(self.header_name.clone()).is_some() {
-            Continue
-        } else {
-            let correlation: String = Uuid::new_v4().to_hyphenated().to_string();
-            let name = self.header_name.as_str();
-            req_headers.insert(HeaderName::from_str(name).unwrap(), HeaderValue::from_str(correlation.as_str()).unwrap());
-            Continue
-        }
-    }
-
-    fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
-        Continue
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use hyper::service::{make_service_fn, service_fn};
@@ -39,9 +9,35 @@ mod tests {
     use crate::tests::{wait_for_gateway, unwrap_body_as_str};
     use std::str::FromStr;
     use uuid::Uuid;
-    use crate::handlers::transformer::correlation::CorrelationIdTransformer;
-    use hyper::header::HeaderValue;
+    use hyper::header::{HeaderValue, HeaderName};
     use log::*;
+    use crate::handlers::{GlobalHandler, HandlerResponse};
+    use crate::handlers::HandlerResponse::Continue;
+
+
+    #[derive(Debug, Clone)]
+    pub struct CorrelationIdTransformer {
+        header_name: String
+    }
+
+    impl GlobalHandler for CorrelationIdTransformer {
+        fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
+            let req_headers = req.headers_mut();
+            if req_headers.get(self.header_name.clone()).is_some() {
+                Continue
+            } else {
+                let correlation: String = Uuid::new_v4().to_hyphenated().to_string();
+                let name = self.header_name.as_str();
+                req_headers.insert(HeaderName::from_str(name).unwrap(), HeaderValue::from_str(correlation.as_str()).unwrap());
+                Continue
+            }
+        }
+
+        fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
+            Continue
+        }
+    }
+
 
     async fn echo_correlation_server(header: &'static str, backend_port: u16) {
         let addr = SocketAddr::from(([127, 0, 0, 1], backend_port));
@@ -80,7 +76,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
-            api.add_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
+            api.add_global_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -103,7 +99,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
-            api.add_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
+            api.add_global_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

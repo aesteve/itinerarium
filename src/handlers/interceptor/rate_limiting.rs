@@ -1,5 +1,5 @@
 use tokio::time::Duration;
-use crate::handlers::{Handler, HandlerResponse};
+use crate::handlers::{GlobalHandler, HandlerResponse};
 use hyper::{Response, Request, Body, StatusCode};
 use std::time::Instant;
 use std::collections::VecDeque;
@@ -30,7 +30,7 @@ impl RateLimiter {
     }
 }
 
-impl Handler for RateLimiter {
+impl GlobalHandler for RateLimiter {
     fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
         let now = Instant::now();
         let threshold = now - self.conf.span;
@@ -83,7 +83,7 @@ mod tests {
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
             let limiter = RateLimiter::new(2, span);
-            api.add_handler(Box::new(limiter));
+            api.add_global_handler(Box::new(limiter));
             start_local_gateway(gw_port, vec![api]).await.unwrap();
         });
         wait_for_gateway(gw_port).await;

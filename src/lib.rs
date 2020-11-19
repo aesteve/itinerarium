@@ -11,7 +11,21 @@ mod tests {
     use std::net::SocketAddr;
     use std::str::FromStr;
     use log::*;
-    use crate::utils::body_as_str;
+    use std::string::FromUtf8Error;
+
+    #[derive(Debug)]
+    pub enum BodyReadError {
+        EncodingError(FromUtf8Error),
+        BodyError(hyper::Error)
+    }
+
+    pub async fn body_as_str(resp: Response<Body>) -> Result<String, BodyReadError> {
+        hyper::body::to_bytes(resp.into_body())
+            .await
+            .map(|b| b.to_vec())
+            .map_err(BodyReadError::BodyError)
+            .and_then(|bytes| String::from_utf8(bytes).map_err(BodyReadError::EncodingError))
+    }
 
     pub(crate) async fn unwrap_body_as_str(resp: Response<Body>) -> String {
         body_as_str(resp)
