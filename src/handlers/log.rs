@@ -1,50 +1,46 @@
-use hyper::{Request, Body, Response};
-use log::{Level};
-use crate::handlers::{HandlerResponse, GlobalHandler};
-use crate::handlers::HandlerResponse::Continue;
-
-#[derive(Debug, Clone)]
-pub struct LogRequestInterceptor {
-    pub level: Level,
-}
-
-impl GlobalHandler for LogRequestInterceptor {
-    fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
-        log::log!(self.level, "{:?}", req);
-        Continue
-    }
-
-    fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
-        Continue
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LogResponseInterceptor {
-    pub level: Level,
-}
-
-impl GlobalHandler for LogResponseInterceptor {
-    fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
-        Continue
-    }
-
-    fn handle_res(&self, req: &mut Response<Body>) -> HandlerResponse {
-        log::log!(self.level, "{:?}", req);
-        Continue
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::gateway::start_local_gateway;
-    use hyper::{Client, Uri};
+    use hyper::{Client, Uri, Request, Body, Response};
     use ::log::{Level, LevelFilter};
     use simple_logger::SimpleLogger;
     use std::str::FromStr;
     use crate::tests::{test_server, wait_for_gateway};
     use crate::conf::api::Api;
-    use crate::handlers::interceptor::log::{LogRequestInterceptor, LogResponseInterceptor};
+    use crate::handlers::{GlobalHandler, HandlerResponse};
+    use crate::handlers::HandlerResponse::Continue;
+
+    #[derive(Debug, Clone)]
+    pub struct LogRequestInterceptor {
+        pub level: Level,
+    }
+
+    impl GlobalHandler for LogRequestInterceptor {
+        fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
+            log::log!(self.level, "{:?}", req);
+            Continue
+        }
+
+        fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
+            Continue
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct LogResponseInterceptor {
+        pub level: Level,
+    }
+
+    impl GlobalHandler for LogResponseInterceptor {
+        fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
+            Continue
+        }
+
+        fn handle_res(&self, req: &mut Response<Body>) -> HandlerResponse {
+            log::log!(self.level, "{:?}", req);
+            Continue
+        }
+    }
 
     #[tokio::test]
     async fn test_log_request() {
@@ -59,7 +55,7 @@ mod tests {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             api.add_global_handler(Box::new(LogRequestInterceptor { level: Level::Info }));
             api.add_global_handler(Box::new(LogResponseInterceptor { level: Level::Warn }));
-            start_local_gateway(6000, vec![api]).await
+            start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
         let client = Client::new();

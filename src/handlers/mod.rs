@@ -1,8 +1,11 @@
 use hyper::{Response, Body, Request};
 use std::fmt::Debug;
 use async_trait::async_trait;
-pub mod interceptor;
-pub mod transformer;
+
+mod log;
+mod rate_limiting;
+mod json_pointer;
+mod correlation;
 
 /// Controls the Gateway flow
 /// After an Handler has been invoked, should it move on and invoke the next Handler in the chain
@@ -61,8 +64,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_break() {
-        #[derive(Debug, Clone)]
-        struct BreakingHandler {}
+        #[derive(Debug, Clone)] struct BreakingHandler;
         impl GlobalHandler for BreakingHandler {
             fn handle_req(&self, _req: &mut Request<Body>) -> HandlerResponse {
                 Break(Response::builder().status(StatusCode::GONE).body(Body::empty()).unwrap())
@@ -77,7 +79,7 @@ mod tests {
         let path = "/shortcut";
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_global_handler(Box::new(BreakingHandler {}));
+            api.add_global_handler(Box::new(BreakingHandler));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -104,9 +106,7 @@ mod tests {
         let gw_port = 7110;
         let backend_port = 7111;
         let path = "/shortcut";
-        tokio::spawn(async move {
-            test_server("something", backend_port).await
-        });
+        tokio::spawn(async move { test_server("something", backend_port).await });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             let origin = SystemTime::now();
@@ -141,36 +141,22 @@ mod tests {
         let gw_port = 7120;
         let backend_port = 7121;
         let path = "/counter";
-        tokio::spawn(async move {
-            test_server("check X-Count header", backend_port).await
-        });
+        tokio::spawn(async move { test_server("check X-Count header", backend_port).await });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
             api.add_global_handler(Box::new(CountHandler { counter: Arc::new(AtomicU32::new(0)) }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
-        let client = Client::new();
         let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, path).as_str()).unwrap();
-        client.get(url.clone()).await.unwrap();
-        let client = Client::new(); // create a new Client => new connection?
-        client.get(url.clone()).await.unwrap();
-        let client = Client::new(); // create a new Client => new connection?
-        client.get(url.clone()).await.unwrap();
-        let resp = client.get(url.clone()).await.unwrap();
+        Client::new().get(url.clone()).await.unwrap();
+        Client::new().get(url.clone()).await.unwrap();
+        Client::new().get(url.clone()).await.unwrap();
+        let resp = Client::new().get(url.clone()).await.unwrap();
         assert_eq!(StatusCode::OK, resp.status());
         let headers = resp.headers();
         let count: u32 = headers.get("X-Count").unwrap().to_str().unwrap().parse().unwrap();
         assert_eq!(count, 4);
-        drop(client);
-
-        // try to drop the client to create a new connection
-        let client = Client::new();
-        let resp = client.get(url).await.unwrap();
-        assert_eq!(StatusCode::OK, resp.status());
-        let headers = resp.headers();
-        let count: u32 = headers.get("X-Count").unwrap().to_str().unwrap().parse().unwrap();
-        assert_eq!(count, 5);
     }
 
     #[tokio::test]
@@ -200,8 +186,7 @@ mod tests {
                 Continue
             }
         }
-        #[derive(Debug, Clone)]
-        struct TestScopedFactory {};
+        #[derive(Debug, Clone)] struct TestScopedFactory;
         impl ScopedHandlerFactory for TestScopedFactory {
             fn create(&self) -> Box<dyn ScopedHandler> {
                 Box::new(TestScopedHandler { id: Arc::new(Mutex::new(Some(0)))})
@@ -238,7 +223,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_scoped_handler(Box::new(TestScopedFactory {}));
+            api.add_scoped_handler(Box::new(TestScopedFactory));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -252,7 +237,9 @@ mod tests {
                 .unwrap();
             client.request(req)
         }).collect();
-        futures::future::join_all(reqs).await;
+        for resp in futures::future::join_all(reqs).await {
+            assert_eq!(StatusCode::OK, resp.unwrap().status());
+        }
     }
 
     #[tokio::test]
@@ -276,7 +263,7 @@ mod tests {
             }
         }
         #[derive(Debug, Clone)]
-        struct ResponseDurationScopedFactory {};
+        struct ResponseDurationScopedFactory;
         impl ScopedHandlerFactory for ResponseDurationScopedFactory {
             fn create(&self) -> Box<dyn ScopedHandler> {
                 Box::new(ResponseDurationScoped { start: Arc::new(Mutex::new(Some(Instant::now()))) })
@@ -312,7 +299,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, path.to_string()).unwrap();
-            api.add_scoped_handler(Box::new(ResponseDurationScopedFactory {}));
+            api.add_scoped_handler(Box::new(ResponseDurationScopedFactory));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

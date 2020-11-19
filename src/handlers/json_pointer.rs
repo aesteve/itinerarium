@@ -20,25 +20,31 @@ mod tests {
             match body_as_str(res).await {
                 Err(err) => {
                     log::error!("Could not extract response body {:?}", err);
-                    Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap()
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .unwrap()
                 },
                 Ok(body) => {
                     match serde_json::from_str::<Value>(body.as_str()) {
                         Err(err) => {
                             log::error!("Could not read body as json {:?}", err);
-                            Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Body::empty()).unwrap()
+                            Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(Body::empty())
+                                .unwrap()
 
                         },
                         Ok(json) => {
                             match json.pointer(self.pointer.as_str()) {
-                                None => Response::builder().status(StatusCode::NOT_FOUND).body(Body::empty()).unwrap(),
-                                Some(value) => {
-                                    let payload = value.to_string();
-                                    Response::builder()
-                                        .status(StatusCode::OK)
-                                        .body(Body::from(payload))
-                                        .unwrap()
-                                }
+                                None => Response::builder()
+                                    .status(StatusCode::NOT_FOUND)
+                                    .body(Body::empty())
+                                    .unwrap(),
+                                Some(value) => Response::builder()
+                                    .status(StatusCode::OK)
+                                    .body(Body::from(value.to_string()))
+                                    .unwrap()
                             }
 
                         }
@@ -70,13 +76,13 @@ mod tests {
         wait_for_gateway(gw_port).await;
         let client = Client::new();
         let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, prefix_1).as_str()).unwrap();
-        let resp = client.get(url.clone()).await.unwrap();
+        let resp = client.get(url).await.unwrap();
         assert_eq!(StatusCode::OK, resp.status());
         let body = unwrap_body_as_str(resp).await;
         assert_eq!(json!("value").to_string(), body);
 
         let url = Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, prefix_2).as_str()).unwrap();
-        let resp = client.get(url.clone()).await.unwrap();
+        let resp = client.get(url).await.unwrap();
         assert_eq!(StatusCode::OK, resp.status());
         let body = unwrap_body_as_str(resp).await;
         assert_eq!(json!(42).to_string(), body);

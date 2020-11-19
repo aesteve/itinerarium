@@ -16,21 +16,19 @@ mod tests {
 
 
     #[derive(Debug, Clone)]
-    pub struct CorrelationIdTransformer {
+    pub struct CorrelationIdHandler {
         header_name: String
     }
 
-    impl GlobalHandler for CorrelationIdTransformer {
+    impl GlobalHandler for CorrelationIdHandler {
         fn handle_req(&self, req: &mut Request<Body>) -> HandlerResponse {
             let req_headers = req.headers_mut();
-            if req_headers.get(self.header_name.clone()).is_some() {
-                Continue
-            } else {
+            if req_headers.get(self.header_name.clone()).is_none() {
                 let correlation: String = Uuid::new_v4().to_hyphenated().to_string();
                 let name = self.header_name.as_str();
                 req_headers.insert(HeaderName::from_str(name).unwrap(), HeaderValue::from_str(correlation.as_str()).unwrap());
-                Continue
             }
+            Continue
         }
 
         fn handle_res(&self, _res: &mut Response<Body>) -> HandlerResponse {
@@ -76,7 +74,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
-            api.add_global_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
+            api.add_global_handler(Box::new(CorrelationIdHandler { header_name: header.to_string() }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;
@@ -84,7 +82,6 @@ mod tests {
         let resp = client.get(Uri::from_str(format!("http://127.0.0.1:{}{}", gw_port, prefix).as_str()).unwrap()).await.unwrap();
         assert_eq!(200, resp.status());
         let body = unwrap_body_as_str(resp).await;
-        assert_ne!("", body);
         assert!(Uuid::parse_str(body.as_str()).is_ok());
     }
 
@@ -99,7 +96,7 @@ mod tests {
         });
         tokio::spawn(async move {
             let mut api = Api::http("127.0.0.1", backend_port, prefix.to_string()).unwrap();
-            api.add_global_handler(Box::new(CorrelationIdTransformer { header_name: header.to_string() }));
+            api.add_global_handler(Box::new(CorrelationIdHandler { header_name: header.to_string() }));
             start_local_gateway(gw_port, vec![api]).await
         });
         wait_for_gateway(gw_port).await;

@@ -57,11 +57,11 @@ impl HttpEndpoint {
 
 }
 
-fn build_path(path: Option<&PathAndQuery>, from: usize) -> String {
-    let full_path = path.map(|x| x.as_str()).unwrap_or("");
+fn build_path(path: Option<&PathAndQuery>, from: usize) -> &str {
+    let full_path = path.map(PathAndQuery::as_str).unwrap_or("");
     if from > full_path.len() {
-        "".to_string()
+        ""
     } else {
-        full_path[from..].to_string()
+        &full_path[from..]
     }
 }

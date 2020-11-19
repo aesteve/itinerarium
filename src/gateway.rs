@@ -19,7 +19,7 @@ pub async fn start_local_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error>
 }
 
 pub struct Gateway {
-    apis: Vec<Arc<Api>>
+    apis: Vec<Arc<Api>>,
 }
 
 impl Service<Request<Body>> for Gateway {

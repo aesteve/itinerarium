@@ -1,6 +1,5 @@
 pub mod conf;
 pub mod gateway;
-pub(crate) mod utils;
 pub mod handlers;
 
 #[cfg(test)]
