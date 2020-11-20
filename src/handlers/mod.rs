@@ -6,6 +6,7 @@ mod log;
 mod rate_limiting;
 mod json_pointer;
 mod correlation;
+mod subscriptions;
 
 /// Controls the Gateway flow
 /// After an Handler has been invoked, should it move on and invoke the next Handler in the chain
