@@ -6,6 +6,7 @@ use std::future::Future;
 use crate::conf::api::Api;
 use log::info;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 type PinnedResponseFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, Error>> + Send>>;
 type PinnedGatewayFuture = Pin<Box<dyn Future<Output = Result<Gateway, Error>> + Send>>;
@@ -19,7 +20,7 @@ pub async fn start_local_gateway(port: u16, apis: Vec<Api>) -> Result<(), Error>
 }
 
 pub struct Gateway {
-    apis: Vec<Arc<Api>>,
+    by_path: HashMap<String, Arc<Api>>
 }
 
 impl Service<Request<Body>> for Gateway {
@@ -62,8 +63,18 @@ impl Service<Request<Body>> for Gateway {
 }
 
 impl Gateway {
+    fn new(apis: Vec<Arc<Api>>) -> Self {
+        let mut map = HashMap::with_capacity(apis.len());
+        for api in apis {
+            map.insert(api.prefix.clone(), api);
+        }
+        Gateway { by_path: map }
+    }
     fn match_path(&self, req: &Request<Body>) -> Option<&Arc<Api>> {
-        self.apis.iter().find(|api| api.matches(req))
+        let path = req.uri().path();
+        let a = &path[1..].find('/');
+        let id = a.map(|fst| &path[0..fst + 1]).unwrap_or(path);
+        self.by_path.get(&id.to_string())
     }
 }
 
@@ -81,7 +92,7 @@ impl <T> Service<T> for MkGateway {
 
     fn call(&mut self, _: T) -> Self::Future {
         let apis = self.apis.clone();
-        let fut = async move { Ok(Gateway { apis }) };
+        let fut = async move { Ok(Gateway::new(apis)) };
         Box::pin(fut)
     }
 }

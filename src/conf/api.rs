@@ -93,10 +93,6 @@ impl Api  {
         }).await
     }
 
-    pub fn matches(&self, req: &Request<Body>) -> bool {
-        req.uri().path().starts_with(&self.prefix)
-    }
-
     pub fn endpoint_for(&self, _req: &Request<Body>) -> &HttpEndpoint {
         // TODO: decision tree (based on health checks, response times, etc.)
         // How to deal with multiple ? Should this be moved to another trait?
