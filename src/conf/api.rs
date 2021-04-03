@@ -1,9 +1,9 @@
 use crate::conf::endpoint::{HttpEndpoint};
 use std::string::ParseError;
 use hyper::{Request, Body, Response, Error};
-use futures::{FutureExt, TryFutureExt};
 use crate::handlers::{HandlerResponse, GlobalHandler, ResponseFinalizer, ScopedHandler, ScopedHandlerFactory};
-use crate::conf::endpoint::HttpEndpoint::{Ssl, Plain};
+use crate::conf::endpoint::HttpEndpoint::{Plain, Ssl};
+use futures::{FutureExt, TryFutureExt};
 
 #[derive(Debug)]
 pub struct Api {
@@ -69,8 +69,8 @@ impl Api  {
     /// Sends the request to upstream and handles the response
     async fn send(&self, endpoint: &HttpEndpoint, req: Request<Body>, hooks: &[Box<dyn ScopedHandler>]) -> Result<Response<Body>, Error> {
         match endpoint {
-            Ssl(e) => e.client.request(req),
             Plain(e) => e.client.request(req),
+            Ssl(e) => e.client.request(req),
         }.map(|res| {
             if res.is_err() { return res }
             let mut resp = res.unwrap();

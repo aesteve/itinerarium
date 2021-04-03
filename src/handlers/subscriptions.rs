@@ -63,7 +63,7 @@ mod tests {
             let keys = validated.clone();
             tokio::spawn(async move {
                 loop {
-                    tokio::time::delay_for(Duration::from_millis(100)).await;
+                    tokio::time::sleep(Duration::from_millis(100)).await;
                     match receiver.recv() {
                         Ok(Subscribe(key)) => {
                             keys.lock().unwrap().insert(key);
@@ -118,7 +118,7 @@ mod tests {
 
         // Validate the Api-Key
         sender.send(Subscribe(key.to_string())).unwrap();
-        tokio::time::delay_for(Duration::from_millis(105)).await;
+        tokio::time::sleep(Duration::from_millis(105)).await;
 
         let resp = client.get(uri.clone()).await.unwrap();
         assert_eq!(StatusCode::UNAUTHORIZED, resp.status()); // No Api-Key => 401
@@ -131,7 +131,7 @@ mod tests {
 
         // Revoke the Api-Key
         sender.send(Revoke(key.to_string())).unwrap();
-        tokio::time::delay_for(Duration::from_millis(105)).await;
+        tokio::time::sleep(Duration::from_millis(105)).await;
 
         let resp = client.get(uri.clone()).await.unwrap();
         assert_eq!(StatusCode::UNAUTHORIZED, resp.status());  // No Api-Key => Unauthorized

@@ -3,7 +3,7 @@ mod tests {
     use crate::tests::{test_server, wait_for_gateway};
     use crate::conf::api::Api;
     use crate::gateway::start_local_gateway;
-    use tokio::time::{Duration, delay_for};
+    use tokio::time::{Duration, sleep};
     use std::str::FromStr;
     use crate::handlers::{GlobalHandler, HandlerResponse};
     use hyper::{Client, Uri, Response, Request, Body, StatusCode};
@@ -94,7 +94,7 @@ mod tests {
         assert_eq!(StatusCode::TOO_MANY_REQUESTS, client.get(url.clone()).await.unwrap().status());
         assert_eq!(StatusCode::TOO_MANY_REQUESTS, client.get(url.clone()).await.unwrap().status());
         assert_eq!(StatusCode::TOO_MANY_REQUESTS, client.get(url.clone()).await.unwrap().status());
-        delay_for(span).await;
+        sleep(span).await;
         assert_eq!(StatusCode::OK, client.get(url.clone()).await.unwrap().status());
         assert_eq!(StatusCode::OK, client.get(url.clone()).await.unwrap().status());
         assert_eq!(StatusCode::TOO_MANY_REQUESTS, client.get(url).await.unwrap().status());

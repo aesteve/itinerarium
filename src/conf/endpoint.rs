@@ -1,8 +1,8 @@
 use std::string::ParseError;
 use hyper::client::HttpConnector;
 use hyper::{Client, Request, Body};
-use hyper_tls::HttpsConnector;
 use hyper::http::uri::PathAndQuery;
+use hyper_tls::HttpsConnector;
 
 
 #[derive(Debug, Clone)]
@@ -22,19 +22,16 @@ impl HttpEndpoint {
     pub fn http(host: &str, port: u16) -> Result<Self, ParseError> {
         Ok(HttpEndpoint::Plain(Endpoint {
             address: format!("{}:{}", host, port),
-            client: Client::builder() // TODO: configure client according to endpoint conf (retry / timeout / etc.)
-                .build_http(),
+            // TODO: configure client according to endpoint conf (retry / timeout / protocol (HTTP2/HTTPS) etc.)
+            client: Client::builder().build_http(),
         }))
     }
 
     pub fn https(address: &str) -> Result<Self, ParseError> {
-        let connector = HttpsConnector::new();
-        // TODO: configure client according to endpoint conf (retry / timeout / etc.)
-        let client = Client::builder()
-        .build(connector);
         Ok(HttpEndpoint::Ssl(Endpoint {
             address: address.to_string(),
-            client,
+            // TODO: configure client according to endpoint conf (retry / timeout / protocol (HTTP2/HTTPS) etc.)
+            client: Client::builder().build(HttpsConnector::new()),
         }))
     }
 

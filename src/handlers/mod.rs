@@ -55,7 +55,7 @@ mod tests {
     use std::time::{SystemTime, Instant};
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::{Arc, Mutex};
-    use tokio::time::{Duration, delay_for};
+    use tokio::time::{Duration, sleep};
     use hyper::service::{make_service_fn, service_fn};
     use std::convert::Infallible;
     use log::*;
@@ -203,7 +203,7 @@ mod tests {
                     Ok::<_, Infallible>(
                         service_fn(move |req| {
                             async move {
-                                delay_for(Duration::from_millis(rand::rngs::OsRng.gen_range(100, 1_100))).await;
+                                sleep(Duration::from_millis(rand::rngs::OsRng.gen_range(100..1_100))).await;
                                 let id: usize = (req.headers().get("X-Id").unwrap().to_str().unwrap()).parse().unwrap();
                                 let resp = Response::builder()
                                     .status(StatusCode::OK)
@@ -281,7 +281,7 @@ mod tests {
                     Ok::<_, Infallible>(
                         service_fn(move |_req| {
                             async move {
-                                delay_for(Duration::from_millis(sleep)).await;
+                                tokio::time::sleep(Duration::from_millis(sleep)).await;
                                 let resp = Response::builder()
                                     .status(StatusCode::OK)
                                     .body(Body::empty())
