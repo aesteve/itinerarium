@@ -10,7 +10,7 @@ hyper = "0.13"
 hyper-native-tls = "0.3.0"
 hyper-tls = "0.4.3"
 tokio = { version = "0.2", features = [ "rt-core", "net", "time", "macros" ] }
-futures = { version = "0.3.8", default-features = false, features = ["std"] }
+futures = { version = "0.3.13", default-features = false, features = ["std"] }
 async-trait = "0.1.42"
 
 log = "0.4.11"
